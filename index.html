@@ -57,11 +57,11 @@
 
   /* ---------- panel ---------- */
   #panel {
-    width: 400px; flex: 0 0 400px; background: var(--panel);
+    width: 420px; flex: 0 0 420px; background: var(--panel);
     border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
   }
 
-  #panel-header { padding: 20px 22px 16px; border-bottom: 1px solid var(--border); }
+  #panel-header { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); }
   #panel-header h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
   #panel-header h1 span { color: var(--jev); }
   #panel-header p { margin: 5px 0 0; font-size: 12.5px; color: var(--text-dim); }
@@ -90,10 +90,13 @@
   /* ---------- material ---------- */
   #material { display: flex; gap: 10px; }
   .count {
-    flex: 1; background: var(--panel-raised); border: 1px solid var(--border);
+    flex: 1; min-width: 0; background: var(--panel-raised); border: 1px solid var(--border);
     border-radius: 10px; padding: 11px 13px;
   }
-  .count .label { font-size: 11px; color: var(--text-dim); }
+  .count .label {
+    font-size: 11px; color: var(--text-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .count .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
   .count.human .value { color: var(--human); }
   .count.jev .value { color: var(--jev); }
@@ -102,7 +105,7 @@
   /* ---------- candidates ---------- */
   .candidate {
     position: relative; border: 1px solid transparent; border-radius: 9px;
-    padding: 8px 10px; margin-bottom: 4px; cursor: default; overflow: hidden;
+    padding: 8px 10px; margin-bottom: 4px; overflow: hidden;
     transition: border-color .15s, background .15s;
   }
   .candidate:hover { border-color: var(--border); background: var(--panel-raised); }
@@ -120,7 +123,7 @@
   .candidate.chosen .percent { color: var(--jev); }
   .candidate .summary { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 
-  /* ---------- evaluation ---------- */
+  /* ---------- cards ---------- */
   .card { background: var(--panel-raised); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
   .card .caveat { font-size: 11px; color: var(--text-dim); margin: 0 0 9px; line-height: 1.45; }
   .pair { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 3px 0; }
@@ -130,6 +133,42 @@
   .meter { height: 4px; border-radius: 4px; background: #212a36; margin-top: 7px; overflow: hidden; }
   .meter > div { height: 100%; background: var(--jev); border-radius: 4px; transition: width .4s ease; }
   .meter.risk > div { background: linear-gradient(90deg, var(--jev), var(--alert)); }
+
+  /* ---------- the raw exchange with TypeSafe ---------- */
+  details.exchange {
+    background: var(--panel-raised); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; margin-bottom: 8px;
+  }
+  details.exchange > summary {
+    cursor: pointer; list-style: none; padding: 10px 14px; font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  details.exchange > summary::-webkit-details-marker { display: none; }
+  details.exchange > summary::before {
+    content: "▸"; color: var(--text-dim); font-size: 11px; transition: transform .15s;
+  }
+  details.exchange[open] > summary::before { transform: rotate(90deg); }
+  details.exchange > summary .tag {
+    margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+  }
+  .json-view {
+    margin: 0; padding: 0 14px 12px; font-family: var(--mono); font-size: 11px; line-height: 1.5;
+    color: var(--text-dim); max-height: 320px; overflow: auto; white-space: pre;
+  }
+  .json-view::-webkit-scrollbar { width: 8px; height: 8px; }
+  .json-view::-webkit-scrollbar-thumb { background: #2b3542; border-radius: 8px; }
+
+  /* ---------- leaderboard ---------- */
+  table.board { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.board th {
+    text-align: left; font-weight: 500; color: var(--text-dim); font-size: 11px;
+    padding: 0 6px 6px 0; border-bottom: 1px solid var(--border);
+  }
+  table.board td { padding: 5px 6px 5px 0; border-bottom: 1px solid rgba(35,44,57,.5); }
+  table.board td.num, table.board th.num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; }
+  table.board tr.you td { color: var(--human); font-weight: 600; }
+  table.board td.rank { color: #4a5768; width: 20px; }
+  .empty-note { font-size: 12px; color: var(--text-dim); margin: 0; }
 
   /* ---------- move history ---------- */
   #history { font-family: var(--mono); font-size: 12px; max-height: 190px; overflow-y: auto; }
@@ -159,31 +198,59 @@
 
   .hidden { display: none !important; }
 
-  /* ---------- API key dialog ---------- */
+  /* ---------- start dialog ---------- */
   dialog {
     border: 1px solid var(--border); border-radius: 14px; background: var(--panel);
-    color: var(--text); padding: 0; max-width: 440px; width: calc(100% - 40px);
+    color: var(--text); padding: 0; max-width: 520px; width: calc(100% - 40px);
+    /* On a short window the dialog scrolls inside itself rather than spilling
+       off the top and bottom. */
+    max-height: calc(100vh - 40px); overflow: hidden;
   }
+  dialog > form { max-height: calc(100vh - 40px); overflow-y: auto; }
+  dialog > form::-webkit-scrollbar { width: 9px; }
+  dialog > form::-webkit-scrollbar-thumb { background: #262f3d; border-radius: 9px; }
   dialog::backdrop { background: rgba(5,7,10,.82); backdrop-filter: blur(3px); }
   dialog .dialog-body { padding: 26px 28px 24px; }
-  dialog h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+  dialog h2 { margin: 0 0 6px; font-size: 19px; font-weight: 600; }
   dialog h2 span { color: var(--jev); }
-  dialog p { margin: 0 0 16px; font-size: 13px; color: var(--text-dim); line-height: 1.55; }
-  dialog input {
-    width: 100%; font: inherit; font-family: var(--mono); font-size: 13px; padding: 10px 12px;
+  dialog > form > .dialog-body > p { margin: 0 0 18px; font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+
+  .field { margin-bottom: 16px; }
+  .field > label {
+    display: block; font-size: 11px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--text-dim); margin-bottom: 7px;
+  }
+  .field input {
+    width: 100%; font: inherit; font-size: 14px; padding: 10px 12px;
     border-radius: 8px; border: 1px solid var(--border); background: #0c1016; color: var(--text);
   }
-  dialog input:focus { outline: none; border-color: var(--jev); }
-  dialog .note {
-    margin: 12px 0 0; font-size: 11.5px; color: var(--text-dim);
+  .field input.key { font-family: var(--mono); font-size: 13px; }
+  .field input:focus { outline: none; border-color: var(--jev); }
+
+  .variants { display: flex; flex-direction: column; gap: 7px; }
+  .variant {
+    display: block; border: 1px solid var(--border); border-radius: 9px;
+    padding: 10px 13px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .variant:hover { background: var(--panel-raised); }
+  .variant input { position: absolute; opacity: 0; pointer-events: none; }
+  .variant .name { font-size: 14px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
+  .variant .size { font-family: var(--mono); font-size: 11px; color: var(--text-dim); font-weight: 400; }
+  .variant .desc { font-size: 11.5px; color: var(--text-dim); margin-top: 3px; line-height: 1.45; }
+  .variant:has(input:checked) { border-color: var(--jev); background: rgba(63,208,201,.07); }
+  .variant:has(input:checked) .name { color: var(--jev); }
+
+  .privacy {
+    margin: 0; font-size: 11.5px; color: var(--text-dim);
     border-left: 2px solid var(--border); padding-left: 11px; line-height: 1.5;
   }
-  dialog .dialog-actions { margin-top: 18px; display: flex; justify-content: flex-end; }
-  dialog .key-error { color: var(--alert); font-size: 12.5px; margin: 10px 0 0; }
+  .privacy strong { color: var(--text); font-weight: 600; }
+  dialog .dialog-actions { margin-top: 20px; display: flex; justify-content: flex-end; }
+  dialog .form-error { color: var(--alert); font-size: 12.5px; margin: 12px 0 0; }
 
-  @media (max-width: 900px) {
+  @media (max-width: 960px) {
     #app { flex-direction: column; }
-    #scene { height: 52vh; flex: none; }
+    #scene { height: 50vh; flex: none; }
     #panel { width: 100%; flex: 1; border-left: none; border-top: 1px solid var(--border); }
   }
 </style>
@@ -198,25 +265,25 @@
   <aside id="panel">
     <header id="panel-header">
       <h1>Dama × <span>Jev</span></h1>
-      <p>Dama internazionale 10x10. Tu il bianco, Jev il nero.</p>
+      <p id="panel-subtitle">Scegli una variante per cominciare.</p>
     </header>
 
     <div id="panel-body">
       <section class="section">
-        <div id="status"><span id="status-dot"></span><span id="status-text">Tocca a te.</span></div>
+        <div id="status"><span id="status-dot"></span><span id="status-text">Pronti.</span></div>
       </section>
 
       <section class="section">
         <div id="material">
           <div class="count human">
-            <div class="label">Tu</div>
-            <div class="value" id="count-human">20</div>
-            <div class="detail" id="detail-human">20 pedine</div>
+            <div class="label" id="label-human">Tu</div>
+            <div class="value" id="count-human">—</div>
+            <div class="detail" id="detail-human">&nbsp;</div>
           </div>
           <div class="count jev">
             <div class="label">Jev</div>
-            <div class="value" id="count-jev">20</div>
-            <div class="detail" id="detail-jev">20 pedine</div>
+            <div class="value" id="count-jev">—</div>
+            <div class="detail" id="detail-jev">&nbsp;</div>
           </div>
         </div>
       </section>
@@ -256,12 +323,31 @@
         </div>
       </section>
 
-      <section class="section hidden" id="section-usage">
-        <h2>Chiamate a TypeSafe</h2>
-        <div class="card">
+      <section class="section hidden" id="section-exchange">
+        <h2>Scambio con TypeSafe</h2>
+        <details class="exchange" id="details-request">
+          <summary>Richiesta inviata<span class="tag" id="request-size"></span></summary>
+          <pre class="json-view" id="request-json"></pre>
+        </details>
+        <details class="exchange" id="details-response">
+          <summary>Risposta ricevuta<span class="tag" id="response-size"></span></summary>
+          <pre class="json-view" id="response-json"></pre>
+        </details>
+        <div class="card" style="margin-top:8px">
           <div class="pair"><span class="k">Ultimo turno</span><span class="v" id="usage-turn">—</span></div>
           <div class="pair"><span class="k">Totale partita</span><span class="v" id="usage-total">—</span></div>
           <div class="pair"><span class="k">Modello</span><span class="v" id="usage-model">—</span></div>
+        </div>
+      </section>
+
+      <section class="section" id="section-leaderboard">
+        <h2>Classifica <span id="leaderboard-variant" style="text-transform:none;letter-spacing:0"></span></h2>
+        <div class="card">
+          <div id="leaderboard-body"><p class="empty-note">Nessuna partita finita, per ora.</p></div>
+          <p class="caveat" style="margin:10px 0 0">
+            Si registrano solo le partite arrivate alla fine, e solo nome, variante e risultato.
+            <strong style="color:var(--text)">Le chiavi API non vengono mai salvate.</strong>
+          </p>
         </div>
       </section>
 
@@ -277,22 +363,35 @@
   </aside>
 </div>
 
-<dialog id="key-dialog">
-  <form method="dialog" class="dialog-body" id="key-form">
-    <h2>La tua chiave <span>TypeSafe</span></h2>
-    <p>
-      L'avversario è Jev, il System One model di TypeSafe. Per farlo giocare serve la tua
-      chiave API.
-    </p>
-    <input id="key-input" type="password" autocomplete="off" spellcheck="false"
-           placeholder="ts-..." aria-label="Chiave API TypeSafe">
-    <p class="note">
-      La chiave resta in una variabile di questa pagina: non finisce in localStorage, non
-      viene scritta su disco e il server locale la inoltra senza registrarla. Ricaricando
-      (Cmd+Shift+R) te la richiede di nuovo.
-    </p>
-    <p class="key-error hidden" id="key-error"></p>
-    <div class="dialog-actions"><button class="primary" id="key-submit" value="ok">Gioca</button></div>
+<dialog id="start-dialog">
+  <form method="dialog" id="start-form">
+    <div class="dialog-body">
+      <h2>Dama × <span>Jev</span></h2>
+      <p>
+        L'avversario è Jev, il System One model di TypeSafe. Sceglie lui la mossa, e il
+        pannello ti mostra la distribuzione di probabilità su cui l'ha scelta.
+      </p>
+
+      <div class="field">
+        <label for="name-input">Come ti chiami</label>
+        <input id="name-input" type="text" maxlength="24" autocomplete="off" placeholder="Il nome che finirà in classifica">
+      </div>
+
+      <div class="field">
+        <label>Variante</label>
+        <div class="variants" id="variant-list"></div>
+      </div>
+
+      <div class="field hidden" id="key-field">
+        <label for="key-input">Chiave API TypeSafe</label>
+        <input id="key-input" class="key" type="password" autocomplete="off" spellcheck="false" placeholder="ts-...">
+      </div>
+
+      <p class="privacy" id="privacy-note"></p>
+      <p class="form-error hidden" id="form-error"></p>
+
+      <div class="dialog-actions"><button class="primary" id="start-button" value="ok">Gioca</button></div>
+    </div>
   </form>
 </dialog>
 
