@@ -1,6 +1,6 @@
 /**
- * The Jev client: builds the System One request, sends it through the local
- * proxy, and maps the answer back onto real moves.
+ * The Jev client: builds the System One request, calls TypeSafe, and maps the
+ * answer back onto real moves.
  *
  * The model does not generate text and does not reason out loud: it returns a
  * typed judgement with a probability distribution. This module's job is to put
@@ -8,21 +8,27 @@
  * the facts it could not work out itself, and to report the answer back without
  * dressing it up.
  *
+ * It runs on the server, and the browser never builds a request. That is what
+ * keeps the API key from becoming a free pass to the TypeSafe API: there is no
+ * endpoint here that forwards a payload somebody else wrote.
+ *
  * Note: everything inside `state` and `questions` is written in Italian on
  * purpose. That is the prompt, and the whole game speaks Italian. The question
  * keys, by contrast, are never sent to the model - the docs are explicit about
  * that - so they are English.
  */
 
-import { renderBoard, BOARD_LEGEND, piecesOf } from './notation.js';
+import { renderBoard, boardLegend, piecesOf } from './notation.js';
+import { variantOf } from './variants.js';
 
 export const MODEL = 'jev-latest';
-export const ENDPOINT = '/api/systemone';
+export const UPSTREAM = 'https://api.typesafe.ai/v1/systemone';
+export const TIMEOUT_MS = 30_000;
 
 /** The API accepts 255; we stay below, and always ordered by quality. */
 export const MAX_OPTIONS = 200;
 
-const POSTURE_OPTIONS = {
+export const POSTURE_OPTIONS = {
   attacco: 'Cerchi lo scontro: punti a mangiare, a forzare l avversario e a togliergli pezzi.',
   scambio: 'Punti ad alleggerire la posizione con cambi alla pari, per semplificare.',
   difesa: 'Sei sotto pressione: tieni compatta la struttura e non concedi prese.',
@@ -30,7 +36,7 @@ const POSTURE_OPTIONS = {
   consolidamento: 'Nessuna urgenza: sistemi i pezzi e migliori la posizione senza forzare.',
 };
 
-const RISK_LEVELS = [
+export const RISK_LEVELS = [
   'Posizione tranquilla: nessuna minaccia concreta contro di te.',
   'Qualche tensione, ma niente che ti costi materiale subito.',
   'L avversario ha una minaccia seria che devi tenere d occhio.',
@@ -38,7 +44,10 @@ const RISK_LEVELS = [
   'Posizione compromessa: stai per subire un danno grave o decisivo.',
 ];
 
-const phaseOf = (total) => (total > 30 ? 'apertura' : total > 14 ? 'mediogioco' : 'finale');
+const phaseOf = (total, startingTotal) => {
+  const share = total / startingTotal;
+  return share > 0.75 ? 'apertura' : share > 0.35 ? 'mediogioco' : 'finale';
+};
 
 /**
  * The candidates to send. In draughts the numbers are small, but if a position
@@ -52,6 +61,7 @@ function selectCandidates(annotated) {
 }
 
 export function buildRequest({ state, annotated, jevColor, lastOpponentMove = null, recentMoves = [] }) {
+  const variant = variantOf(state.variant);
   const foeColor = jevColor === 'white' ? 'black' : 'white';
   const mine = piecesOf(state, jevColor);
   const theirs = piecesOf(state, foeColor);
@@ -60,11 +70,14 @@ export function buildRequest({ state, annotated, jevColor, lastOpponentMove = nu
   const criteria = {};
   for (const entry of candidates) criteria[entry.notation] = entry.description;
 
+  const startingTotal = variant.pieceRows * (variant.size / 2) * 2;
+
   const request = {
     model: MODEL,
     state: {
+      variante: variant.name,
       scacchiera: renderBoard(state, jevColor),
-      legenda: BOARD_LEGEND,
+      legenda: boardLegend(variant.size),
       tu_giochi: jevColor === 'black'
         ? 'il nero, che parte in alto e avanza verso il basso'
         : 'il bianco, che parte in basso e avanza verso l alto',
@@ -76,7 +89,7 @@ export function buildRequest({ state, annotated, jevColor, lastOpponentMove = nu
         differenza: mine.total - theirs.total,
         nota: 'Questi conteggi sono gia calcolati: usali cosi come sono.',
       },
-      fase: phaseOf(mine.total + theirs.total),
+      fase: phaseOf(mine.total + theirs.total, startingTotal),
       ultima_mossa_avversario: lastOpponentMove ?? 'nessuna, e la prima mossa della partita',
       mosse_recenti: recentMoves,
     },
@@ -84,7 +97,8 @@ export function buildRequest({ state, annotated, jevColor, lastOpponentMove = nu
       move: {
         type: 'choice',
         instructions: {
-          situazione: 'Stai giocando una partita di dama internazionale 10x10 contro un avversario umano. Tocca a te.',
+          situazione: `Stai giocando una partita di ${variant.name} su scacchiera ` +
+            `${variant.size}x${variant.size} contro un avversario umano. Tocca a te.`,
           domanda: 'Quale di queste mosse giochi?',
           come_leggere_le_opzioni:
             'Ogni opzione e una mossa gia verificata come legale. I campi prese, ' +
@@ -93,10 +107,10 @@ export function buildRequest({ state, annotated, jevColor, lastOpponentMove = nu
           cosa_premiare:
             'Preferisci le mosse che ti lasciano piu materiale dopo gli scambi forzati, ' +
             'che portano le pedine verso la promozione e che non regalano prese all avversario.',
-          nota_sulle_prese:
-            'Nella dama internazionale la presa e obbligatoria e si deve sempre mangiare il ' +
-            'massimo numero di pezzi possibile, quindi tutte le opzioni qui sotto rispettano ' +
-            'gia quel vincolo: non devi verificarlo.',
+          // Le regole cambiano con la variante, e cambiare variante senza cambiare
+          // questa riga vorrebbe dire mentire al modello.
+          regole_della_variante: `${variant.promptRules} Tutte le opzioni qui sotto rispettano gia ` +
+            'questi vincoli: non devi verificarlo.',
         },
         criteria,
       },
@@ -144,15 +158,26 @@ function errorMessage(status, body) {
   return `TypeSafe ha risposto ${status}.`;
 }
 
-export async function askJev({ apiKey, request, signal, fetchImpl = globalThis.fetch }) {
+export async function askJev({ apiKey, request, fetchImpl = globalThis.fetch }) {
   const startedAt = performance.now();
 
-  const response = await fetchImpl(ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(request),
-    signal,
-  });
+  let response;
+  try {
+    response = await fetchImpl(UPSTREAM, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (error) {
+    const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
+    throw new JevError(
+      timedOut
+        ? `TypeSafe non ha risposto entro ${TIMEOUT_MS / 1000} secondi.`
+        : `Non riesco a raggiungere TypeSafe: ${error?.cause?.code ?? error?.message ?? 'errore di rete'}.`,
+      { type: timedOut ? 'timeout' : 'network_error' },
+    );
+  }
 
   const text = await response.text();
   let body = null;
@@ -207,13 +232,14 @@ export function interpret(body, candidates) {
       `Ho giocato ${entry.notation}, la piu probabile fra quelle valide.`;
   }
 
-  // The full distribution, ordered, with each move's annotation alongside.
   const ranking = candidates
     .map((candidate) => ({
-      entry: candidate,
       notation: candidate.notation,
       probability: probabilities[candidate.notation] ?? 0,
       chosen: candidate.notation === entry.notation,
+      facts: candidate.facts,
+      description: candidate.description,
+      move: candidate.move,
     }))
     .sort((a, b) => b.probability - a.probability);
 
@@ -240,5 +266,3 @@ export function interpret(body, candidates) {
     note,
   };
 }
-
-export { POSTURE_OPTIONS, RISK_LEVELS };

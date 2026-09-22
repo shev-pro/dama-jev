@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { initialPosition, positionFrom, applyMove, legalMoves } from '../src/rules.js';
-import { annotateMoves } from '../src/analysis.js';
-import { buildRequest, interpret, askJev, JevError, MODEL, MAX_OPTIONS } from '../src/jev.js';
+import { initialPosition, positionFrom, applyMove, legalMoves } from '../server/rules.js';
+import { annotateMoves } from '../server/analysis.js';
+import { buildRequest, interpret, askJev, JevError, MODEL, MAX_OPTIONS, UPSTREAM } from '../server/jev.js';
 
 /** A position with Black (Jev) to move and more than one option. */
 function jevToMove() {
@@ -126,7 +126,7 @@ test('askJev sends the key in the header and measures latency', async () => {
 
   const { body, latencyMs } = await askJev({ apiKey: 'test-key', request: { model: MODEL }, fetchImpl });
 
-  assert.equal(seen.url, '/api/systemone');
+  assert.equal(seen.url, UPSTREAM, 'the server calls TypeSafe directly; there is no forwarding endpoint any more');
   assert.equal(seen.init.headers.Authorization, 'Bearer test-key');
   assert.equal(JSON.parse(seen.init.body).model, MODEL);
   assert.equal(body.model, 'jev-1.13.0');
