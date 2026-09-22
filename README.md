@@ -213,6 +213,9 @@ wrong capture anywhere and the totals stop matching:
 | english | 7 | 49 | 302 | 1,469 | 7,361 | 36,768 | 179,740 | 845,931 |
 | italian | 7 | 49 | 302 | 1,469 | 7,361 | 36,473 | 177,532 | 828,783 |
 
+Every cell in that table is asserted by the test suite, so the numbers printed here cannot drift
+away from the ones actually checked.
+
 The Italian counts were produced independently by two engines — Rein Halbersma's `dctl` and Ed
 Gilbert's Kingsrow Italian. The suite also runs three of Gilbert's mid-game positions, which have
 kings on the board from the first ply and therefore exercise the whole four-tier priority chain,

@@ -15,8 +15,11 @@ import { initialPosition, positionFrom, legalMoves, applyMove } from '../server/
  * Kingsrow Italian), which is what makes it worth asserting: it is not this
  * code checking itself.
  *
- * Depths are capped so the suite stays quick. The published sequences run much
- * further; see the README.
+ * The depths asserted here are the ones printed in the README, so the table
+ * cannot drift away from what is actually checked. The published sequences run
+ * much further than this - English is known to depth 28 - but each extra ply
+ * costs roughly five times the last, and this is already where the interesting
+ * rules bite.
  */
 function perft(state, depth) {
   const moves = legalMoves(state);
@@ -28,9 +31,9 @@ function perft(state, depth) {
 }
 
 const OPENING = {
-  international: [9, 81, 658, 4265, 27117, 167140],
-  english: [7, 49, 302, 1469, 7361, 36768, 179740],
-  italian: [7, 49, 302, 1469, 7361, 36473, 177532],
+  international: [9, 81, 658, 4265, 27117, 167140, 1049442],
+  english: [7, 49, 302, 1469, 7361, 36768, 179740, 845931],
+  italian: [7, 49, 302, 1469, 7361, 36473, 177532, 828783],
 };
 
 for (const [variant, expected] of Object.entries(OPENING)) {
