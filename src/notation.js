@@ -1,26 +1,30 @@
 /**
- * Notazione e rappresentazioni testuali della posizione.
+ * Notation and textual renderings of a position.
  *
- * Un solo posto decide come una mossa si chiama: la stessa stringa finisce
- * nella cronologia a schermo, nel pannello e come chiave di opzione nella
- * Choice mandata a Jev. Se divergessero, la risposta del modello non
- * sarebbe piu rimappabile sulla mossa.
+ * One place decides what a move is called: the same string ends up in the move
+ * list on screen, in the panel, and as an option key in the Choice sent to Jev.
+ * If those ever diverged, the model's answer could no longer be mapped back
+ * onto a real move.
+ *
+ * Note: the strings that travel to Jev are Italian on purpose. They are prompt
+ * content, and the whole request is written in Italian so the model reads one
+ * coherent piece of language.
  */
 
 import { EMPTY, isKing, squareToRC } from './rules.js';
 
-/** "32-28" per una mossa tranquilla, "33x24x13" per una catena di prese. */
+/** "32-28" for a quiet move, "33x24x13" for a capture chain. */
 export function moveNotation(move) {
   return move.captured.length > 0 ? move.path.join('x') : `${move.from}-${move.to}`;
 }
 
-/** La traversa 1-10 come la conta un giocatore, dall'alto. */
+/** The rank 1-10 as a player counts it, from the top. */
 export const squareRow = (square) => squareToRC(square)[0] + 1;
 
-/** La colonna 0-9 della casella, da sinistra a destra. */
+/** The file 0-9 of a square, left to right. */
 export const squareCol = (square) => squareToRC(square)[1];
 
-/** In che parte della scacchiera cade la casella: serve a distinguere le mosse fra loro. */
+/** Which part of the board a square falls in: it helps tell moves apart. */
 export function zoneOf(square) {
   const col = squareCol(square);
   if (col <= 2) return 'sull ala sinistra';
@@ -28,13 +32,13 @@ export function zoneOf(square) {
   return 'al centro';
 }
 
-/** Le colonne 0 e 9 sono le sponde: un pezzo appoggiato li non puo essere scavalcato di lato. */
+/** Files 0 and 9 are the edges: a piece resting there cannot be jumped sideways. */
 export const isEdgeSquare = (square) => {
-  const col = squareToRC(square)[1];
+  const col = squareCol(square);
   return col === 0 || col === 9;
 };
 
-/** Quante traverse mancano alla promozione per una pedina di quel colore. */
+/** How many ranks a man of that colour still needs to promote. */
 export const rowsToPromotion = (square, color) =>
   color === 'white' ? squareToRC(square)[0] : 9 - squareToRC(square)[0];
 
@@ -54,9 +58,9 @@ function glyph(piece, jevColor) {
 }
 
 /**
- * La scacchiera come griglia di testo: dieci righe da cinque caselle, ciascuna
- * "numero + occupante", con le righe dispari rientrate per rendere visibile
- * l'andamento diagonale. Le caselle chiare non esistono e non compaiono.
+ * The board as a text grid: ten rows of five squares, each one "number plus
+ * occupant", with alternating rows indented so the diagonal structure shows.
+ * Light squares do not exist and do not appear.
  */
 export function renderBoard(state, jevColor) {
   const lines = [];
@@ -77,7 +81,7 @@ export const BOARD_LEGEND =
   `${GLYPHS.empty} = casella vuota. ` +
   'Le righe vanno dalla 1 in alto alla 10 in basso.';
 
-/** Le caselle occupate da un colore, separate fra pedine e dame. */
+/** The squares held by one colour, men and kings kept apart. */
 export function piecesOf(state, color) {
   const men = [];
   const kings = [];

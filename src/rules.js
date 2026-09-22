@@ -1,12 +1,11 @@
 /**
- * Motore della dama internazionale 10x10 (regole FMJD).
+ * International draughts engine (10x10, FMJD rules).
  *
- * Modulo puro: nessun DOM, nessuna rete, nessuno stato globale mutabile.
- * Tutto quello che il resto dell'applicazione sa del gioco passa da qui.
+ * A pure module: no DOM, no network, no mutable global state. Everything the
+ * rest of the application knows about the game comes from here.
  *
- * Le caselle giocabili sono le 50 scure, numerate 1-50 da sinistra a destra
- * e dall'alto in basso. Il nero parte dalle caselle 1-20, il bianco dalle 31-50,
- * e muove per primo il bianco.
+ * The 50 playable squares are the dark ones, numbered 1-50 left to right and
+ * top to bottom. Black starts on 1-20, White on 31-50, and White moves first.
  */
 
 export const EMPTY = 0;
@@ -15,11 +14,11 @@ export const WHITE_KING = 2;
 export const BLACK_MAN = -1;
 export const BLACK_KING = -2;
 
-/** Le 25 mosse per parte senza catture ne mosse di pedina, contate in mezze mosse. */
+/** 25 moves per side without a capture or a man move, counted in plies. */
 export const DRAW_PLY_LIMIT = 50;
 
-// Direzioni diagonali nell'ordine [su-sinistra, su-destra, giu-sinistra, giu-destra].
-// Il bianco avanza verso l'alto (indici 0 e 1), il nero verso il basso (2 e 3).
+// Diagonal directions in the order [up-left, up-right, down-left, down-right].
+// White advances upwards (indices 0 and 1), Black downwards (2 and 3).
 const DIRECTIONS = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
 const WHITE_FORWARD = [0, 1];
 const BLACK_FORWARD = [2, 3];
@@ -33,15 +32,15 @@ export function squareToRC(square) {
 
 export function rcToSquare(row, col) {
   if (row < 0 || row > 9 || col < 0 || col > 9) return 0;
-  if ((row + col) % 2 === 0) return 0; // casella chiara, non si gioca
+  if ((row + col) % 2 === 0) return 0; // light square, not playable
   const offset = row % 2 === 0 ? (col - 1) / 2 : col / 2;
   return row * 5 + offset + 1;
 }
 
 /**
- * RAYS[casella][direzione] = le caselle incontrate allontanandosi in quella
- * direzione, dalla piu vicina alla piu lontana. Precalcolarle evita di rifare
- * l'aritmetica delle coordinate dentro la ricorsione delle catture.
+ * RAYS[square][direction] lists the squares met while moving away in that
+ * direction, nearest first. Precomputing them keeps the coordinate arithmetic
+ * out of the capture recursion.
  */
 const RAYS = (() => {
   const rays = [];
@@ -82,9 +81,9 @@ export function initialPosition() {
 }
 
 /**
- * Costruisce una posizione arbitraria da una mappa casella -> pezzo,
- * con 'w'/'b' per le pedine e 'W'/'B' per le dame. Serve ai test e alle
- * posizioni di studio; il gioco normale parte da initialPosition().
+ * Builds an arbitrary position from a square -> piece map, with 'w'/'b' for men
+ * and 'W'/'B' for kings. Used by tests and study positions; a real game starts
+ * from initialPosition().
  */
 export function positionFrom(pieces, turn = 'white') {
   const codes = { w: WHITE_MAN, W: WHITE_KING, b: BLACK_MAN, B: BLACK_KING };
@@ -93,29 +92,29 @@ export function positionFrom(pieces, turn = 'white') {
   for (const [key, code] of Object.entries(pieces)) {
     const square = Number(key);
     if (!Number.isInteger(square) || square < 1 || square > 50) {
-      throw new Error(`casella fuori scacchiera: ${key}`);
+      throw new Error(`square off the board: ${key}`);
     }
-    if (!(code in codes)) throw new Error(`pezzo sconosciuto: ${code}`);
+    if (!(code in codes)) throw new Error(`unknown piece: ${code}`);
     board[square] = codes[code];
   }
-  if (turn !== 'white' && turn !== 'black') throw new Error(`tratto sconosciuto: ${turn}`);
+  if (turn !== 'white' && turn !== 'black') throw new Error(`unknown turn: ${turn}`);
 
   return withHistory({ board, turn, halfmoveClock: 0, history: [] });
 }
 
 /**
- * Tutte le sequenze di cattura che partono da `from`, gia complete: si fermano
- * solo dove non si puo piu mangiare.
+ * Every capture sequence starting at `from`, already complete: each one stops
+ * only where nothing more can be taken.
  *
- * I due punti delicati del regolamento vivono qui. I pezzi catturati restano
- * sulla scacchiera fino alla fine della mossa, quindi continuano a bloccare il
- * passaggio; e nessuno di loro puo essere scavalcato una seconda volta.
- * Per questo `work` non li rimuove mai e `taken` tiene separato chi e gia preso.
+ * The two fiddly rules live here. Captured pieces stay on the board until the
+ * move ends, so they keep blocking the way; and none of them may be jumped a
+ * second time. That is why `work` never removes them and `taken` tracks
+ * separately which ones are already spoken for.
  */
 function captureSequences(board, from, piece) {
   const sequences = [];
   const work = board.slice();
-  work[from] = EMPTY; // il pezzo e in volo: la casella di partenza e libera
+  work[from] = EMPTY; // the piece is in flight, so its origin is free
   const taken = new Set();
 
   const enemy = opponent(colorOf(piece));
@@ -127,21 +126,21 @@ function captureSequences(board, from, piece) {
     for (let direction = 0; direction < 4; direction++) {
       const ray = RAYS[at][direction];
 
-      // La dama plana sulle caselle vuote fino al primo pezzo; la pedina
-      // guarda solo la casella adiacente.
+      // A king glides over empty squares up to the first piece; a man only
+      // looks at the adjacent square.
       let i = 0;
       if (flying) while (i < ray.length && work[ray[i]] === EMPTY) i++;
       if (i >= ray.length) continue;
 
       const victim = ray[i];
-      if (work[victim] === EMPTY) continue;             // pedina: adiacente vuota
-      if (colorOf(work[victim]) !== enemy) continue;    // pezzo proprio
-      if (taken.has(victim)) continue;                  // gia mangiato: blocca e non si rimangia
+      if (work[victim] === EMPTY) continue;          // man: adjacent square empty
+      if (colorOf(work[victim]) !== enemy) continue; // own piece
+      if (taken.has(victim)) continue;               // already captured: blocks, cannot be retaken
 
       const landings = [];
       for (let j = i + 1; j < ray.length && work[ray[j]] === EMPTY; j++) {
         landings.push(ray[j]);
-        if (!flying) break; // la pedina atterra solo subito dietro la preda
+        if (!flying) break; // a man lands immediately behind its prey
       }
       if (landings.length === 0) continue;
 
@@ -153,7 +152,8 @@ function captureSequences(board, from, piece) {
       taken.delete(victim);
     }
 
-    // Una sequenza vale solo se e arrivata in fondo: finche si puo mangiare, si deve.
+    // A sequence only counts once it has run out: while a capture is available,
+    // it must be taken.
     if (!continued && captured.length > 0) sequences.push({ path, captured });
   };
 
@@ -170,7 +170,7 @@ function quietDestinations(board, from, piece) {
     for (const square of RAYS[from][direction]) {
       if (board[square] !== EMPTY) break;
       destinations.push(square);
-      if (!flying) break; // la pedina avanza di una casella sola
+      if (!flying) break; // a man advances a single square
     }
   }
   return destinations;
@@ -179,16 +179,16 @@ function quietDestinations(board, from, piece) {
 function buildMove(from, path, captured, piece) {
   const to = path[path.length - 1];
   const [row] = squareToRC(to);
-  // La promozione guarda solo la casella di arrivo: una pedina che attraversa
-  // l'ultima traversa durante una catena e prosegue resta pedina.
+  // Promotion looks only at the landing square: a man that crosses the far rank
+  // mid-sequence and carries on stays a man.
   const promotes = isMan(piece) && ((piece > 0 && row === 0) || (piece < 0 && row === 9));
   return { from, to, path, captured, promotes, piece };
 }
 
 /**
- * Le mosse legali per chi ha il tratto, gia filtrate dalla presa obbligatoria
- * e dalla regola della maggioranza: se esiste una cattura si deve catturare, e
- * fra le catture restano solo quelle che portano via piu pezzi.
+ * The legal moves for the side to move, already filtered by compulsory capture
+ * and the majority rule: if a capture exists it must be played, and among the
+ * captures only those taking the most pieces survive.
  */
 export function legalMoves(state) {
   const { board, turn } = state;
@@ -225,7 +225,7 @@ export function applyMove(state, move) {
   for (const square of move.captured) board[square] = EMPTY;
   board[move.to] = move.promotes ? (move.piece > 0 ? WHITE_KING : BLACK_KING) : move.piece;
 
-  // Il contatore della patta riparte da zero appena qualcosa diventa irreversibile.
+  // The draw counter restarts as soon as something becomes irreversible.
   const irreversible = move.captured.length > 0 || isMan(move.piece);
 
   const next = {
@@ -262,7 +262,7 @@ export function gameStatus(state) {
   if (state.halfmoveClock >= DRAW_PLY_LIMIT) return 'draw';
   if (repetitions(state) >= 3) return 'draw';
 
-  // Chi ha il tratto e non ha mosse legali ha perso: e murato.
+  // Whoever is to move with no legal move has lost: they are walled in.
   if (legalMoves(state).length === 0) return state.turn === 'white' ? 'black_wins' : 'white_wins';
 
   return 'playing';

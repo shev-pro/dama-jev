@@ -1,15 +1,17 @@
 /**
- * Annotazione tattica delle mosse candidate.
+ * Tactical annotation of the candidate moves.
  *
- * Qui vive tutta l'aritmetica: quanti pezzi si mangiano, cosa risponde
- * l'avversario, come finisce il materiale dopo gli scambi forzati. La
- * documentazione di TypeSafe e esplicita sul fatto che jev-1.13 non conta in
- * modo affidabile e che l'errore cresce con la dimensione di cio che va
- * contato, quindi al modello non si chiede mai un numero: gli si consegna il
- * numero gia fatto, e gli si chiede il giudizio.
+ * All the arithmetic lives here: how many pieces a move takes, what the
+ * opponent replies, where material lands after the forced exchanges. The
+ * TypeSafe docs are explicit that jev-1.13 does not count reliably and that the
+ * error grows with the size of the thing being counted, so the model is never
+ * asked for a number. It is handed the number, and asked for the judgement.
  *
- * La stessa ricerca serve due scopi: annotare le candidate per Jev, e fare da
- * motore locale di ripiego quando l'API non risponde.
+ * The same search serves two purposes: annotating candidates for Jev, and
+ * acting as the local fallback engine when the API does not answer.
+ *
+ * Note: the descriptions produced here are Italian on purpose. They are prompt
+ * content, sent verbatim as the Choice option descriptions.
  */
 
 import { EMPTY, isKing, isMan, legalMoves, applyMove, squareToRC, rcToSquare } from './rules.js';
@@ -19,7 +21,7 @@ const MAN_VALUE = 1;
 const KING_VALUE = 3;
 const MATE = 1000;
 
-/** Profondita e tetto di nodi: tengono il turno di Jev sotto la decina di ms. */
+/** Depth and node ceiling: they keep Jev's turn under a few milliseconds. */
 const SEARCH_DEPTH = 4;
 const QUIESCENCE_PLIES = 6;
 const NODE_BUDGET = 300_000;
@@ -38,8 +40,8 @@ function material(state, color) {
 }
 
 /**
- * Valutazione statica dal punto di vista di `color`: materiale, piu una spinta
- * modesta verso la promozione che rompe le parita senza distorcere il conto.
+ * Static evaluation from `color`'s point of view: material, plus a modest push
+ * towards promotion that breaks ties without distorting the count.
  */
 function evaluate(state, color) {
   let score = material(state, color) - material(state, other(color));
@@ -58,14 +60,13 @@ function negamax(state, depth, alpha, beta, quiescence, budget, ply) {
   if (budget.nodes++ > NODE_BUDGET) return evaluate(state, state.turn);
 
   const moves = legalMoves(state);
-  // Chi ha il tratto ed e murato ha perso. Lo sconto per `ply` fa si che una
-  // vittoria immediata valga piu di una vittoria fra tre mosse: senza, il
-  // motore considera equivalenti tutte le strade che vincono e ne pesca una
-  // a caso, anche la piu lunga.
+  // Whoever is to move and walled in has lost. Discounting by `ply` makes an
+  // immediate win worth more than a win in three moves: without it the engine
+  // treats every winning line as equal and picks one at random, however long.
   if (moves.length === 0) return -(MATE - ply);
 
-  // Le catture sono obbligatorie: o tutte le mosse mangiano, o nessuna. Fermarsi
-  // in mezzo a uno scambio forzato falsa la valutazione, quindi si prosegue.
+  // Captures are compulsory: either every move captures or none does. Stopping
+  // in the middle of a forced exchange misreads the position, so we carry on.
   const forcedCapture = moves[0].captured.length > 0;
   if (depth <= 0 && (!forcedCapture || quiescence <= 0)) return evaluate(state, state.turn);
 
@@ -82,7 +83,7 @@ function negamax(state, depth, alpha, beta, quiescence, budget, ply) {
   return best;
 }
 
-/** Il punteggio di ogni mossa legale, dal punto di vista di chi ha il tratto. */
+/** The score of every legal move, from the point of view of the side to move. */
 export function scoreMoves(state, depth = SEARCH_DEPTH) {
   const budget = { nodes: 0 };
   return legalMoves(state).map((move) => ({
@@ -92,26 +93,27 @@ export function scoreMoves(state, depth = SEARCH_DEPTH) {
 }
 
 const MATE_THRESHOLD = MATE - 100;
-/** Sotto questa soglia la differenza e solo il bonus posizionale, non materiale vero. */
+/** Below this, the difference is only the positional nudge, not real material. */
 const MATERIAL_NOISE = 0.25;
+
 export const isWinningScore = (score) => score >= MATE_THRESHOLD;
 export const isLosingScore = (score) => score <= -MATE_THRESHOLD;
 
 /**
- * Quanti pezzi avversari toccano la casella di arrivo. E il fatto che in
- * apertura distingue davvero una mossa dall'altra, quando il materiale e ancora
- * pari ovunque: andare a contatto apre il gioco, restare indietro lo tiene chiuso.
+ * How many enemy pieces touch the landing square. In the opening this is what
+ * actually separates one move from another, when material is still level
+ * everywhere: making contact opens the game, hanging back keeps it closed.
  */
 function contacts(state, square, mover) {
   const [row, col] = squareToRC(square);
-  let vicini = 0;
+  let neighbours = 0;
   for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
-    const adiacente = rcToSquare(row + dr, col + dc);
-    if (!adiacente) continue;
-    const piece = state.board[adiacente];
-    if (piece !== EMPTY && (piece > 0 ? 'white' : 'black') !== mover) vicini++;
+    const adjacent = rcToSquare(row + dr, col + dc);
+    if (!adjacent) continue;
+    const piece = state.board[adjacent];
+    if (piece !== EMPTY && (piece > 0 ? 'white' : 'black') !== mover) neighbours++;
   }
-  return vicini;
+  return neighbours;
 }
 
 function balanceLabel(delta) {
@@ -123,28 +125,27 @@ function balanceLabel(delta) {
 }
 
 /**
- * Dove finisce il pezzo, detto in modo che due mosse diverse suonino diverse.
- * Le descrizioni delle opzioni servono a separarle: se si somigliassero tutte,
- * al modello non resterebbe niente su cui distinguere.
+ * Where the piece ends up, phrased so that two different moves sound different.
+ * Option descriptions exist to separate the options: if they all read alike,
+ * the model has nothing left to tell them apart by.
  */
 function placement(square, mover, piece, promotes) {
   if (promotes) return 'arriva in fondo e promuove a dama';
 
-  const parti = [`finisce sulla traversa ${squareRow(square)} ${zoneOf(square)}`];
-  if (isEdgeSquare(square)) parti.push('appoggiata alla sponda, dove non puo essere scavalcata di lato');
+  const parts = [`finisce sulla traversa ${squareRow(square)} ${zoneOf(square)}`];
+  if (isEdgeSquare(square)) parts.push('appoggiata alla sponda, dove non puo essere scavalcata di lato');
   if (isMan(piece)) {
-    const mancanti = rowsToPromotion(square, mover);
-    parti.push(mancanti === 0 ? 'e in fondo' : `le mancano ${mancanti} ${mancanti === 1 ? 'traversa' : 'traverse'} alla promozione`);
+    const left = rowsToPromotion(square, mover);
+    parts.push(left === 0 ? 'e in fondo' : `le mancano ${left} ${left === 1 ? 'traversa' : 'traverse'} alla promozione`);
   }
-  return parti.join(', ');
+  return parts.join(', ');
 }
 
 /**
- * Le candidate con il loro corredo di fatti gia calcolati e una descrizione
- * in italiano. La descrizione e un oggetto e non una frase unica: la
- * documentazione di TypeSafe accetta oggetti come criteri e raccomanda di
- * separare bene le opzioni, e campi distinti si confrontano meglio di una
- * prosa lunga.
+ * The candidates with their precomputed facts and an Italian description. The
+ * description is an object rather than one long sentence: the TypeSafe docs
+ * accept objects as criteria and recommend separating the options clearly, and
+ * distinct fields compare better than a paragraph.
  */
 export function annotateMoves(state, options = {}) {
   const depth = options.depth ?? SEARCH_DEPTH;
@@ -158,28 +159,29 @@ export function annotateMoves(state, options = {}) {
     const replyCaptures = replies.length > 0 ? replies[0].captured.length : 0;
     const kingsTaken = move.captured.filter((square) => isKing(state.board[square])).length;
     const delta = score - before;
+    const winning = isWinningScore(score);
+    const losing = isLosingScore(score);
+    const levelMaterial = Math.abs(delta) < MATERIAL_NOISE;
 
     const facts = {
-      catture: move.captured.length,
-      catturaDame: kingsTaken,
-      promuove: move.promotes,
-      sponda: isEdgeSquare(move.to),
-      traversa: squareRow(move.to),
-      rispostaAvversaria: replyCaptures,
-      contatti: contacts(after, move.to, mover),
-      avversarioSenzaMosse: replies.length === 0,
-      punteggio: Number(score.toFixed(2)),
-      bilancio: Number(delta.toFixed(2)),
-      vittoriaForzata: isWinningScore(score),
-      sconfittaForzata: isLosingScore(score),
-      etichettaBilancio: isWinningScore(score)
-        ? 'vittoria forzata'
-        : isLosingScore(score)
-          ? 'sconfitta forzata'
-          : Math.abs(delta) < MATERIAL_NOISE ? 'materiale invariato' : balanceLabel(delta),
+      captures: move.captured.length,
+      kingsCaptured: kingsTaken,
+      promotes: move.promotes,
+      onEdge: isEdgeSquare(move.to),
+      rank: squareRow(move.to),
+      opponentReply: replyCaptures,
+      contacts: contacts(after, move.to, mover),
+      opponentHasNoMove: replies.length === 0,
+      score: Number(score.toFixed(2)),
+      balance: Number(delta.toFixed(2)),
+      forcedWin: winning,
+      forcedLoss: losing,
+      balanceLabel: winning ? 'vittoria forzata'
+        : losing ? 'sconfitta forzata'
+          : levelMaterial ? 'materiale invariato' : balanceLabel(delta),
     };
 
-    const descrizione = {
+    const description = {
       mossa: move.captured.length > 0
         ? `${isKing(move.piece) ? 'La dama' : 'La pedina'} in ${move.from} mangia e arriva in ${move.to}`
         : `${isKing(move.piece) ? 'La dama' : 'La pedina'} si sposta da ${move.from} a ${move.to}`,
@@ -189,32 +191,33 @@ export function annotateMoves(state, options = {}) {
           `(caselle ${move.captured.join(', ')})` +
           (kingsTaken > 0 ? `, di cui ${kingsTaken} ${kingsTaken === 1 ? 'dama' : 'dame'}` : ''),
       arrivo: placement(move.to, mover, move.piece, move.promotes),
-      contatto: facts.contatti === 0
+      contatto: facts.contacts === 0
         ? 'la casella di arrivo non tocca nessun pezzo avversario'
-        : `la casella di arrivo tocca ${facts.contatti} ${facts.contatti === 1 ? 'pezzo avversario' : 'pezzi avversari'}`,
-      risposta_avversaria: facts.avversarioSenzaMosse
+        : `la casella di arrivo tocca ${facts.contacts} ${facts.contacts === 1 ? 'pezzo avversario' : 'pezzi avversari'}`,
+      risposta_avversaria: facts.opponentHasNoMove
         ? "dopo questa mossa l'avversario resta senza mosse legali e perde"
         : replyCaptures === 0
           ? "l'avversario non ha prese in risposta"
           : `l'avversario e obbligato a rispondere mangiando ${replyCaptures} ` +
             `${replyCaptures === 1 ? 'pezzo' : 'pezzi'}`,
-      bilancio_dopo_gli_scambi: isWinningScore(score)
+      bilancio_dopo_gli_scambi: winning
         ? 'questa mossa porta a una vittoria forzata'
-        : isLosingScore(score)
+        : losing
           ? 'questa mossa porta a una sconfitta forzata'
-          : Math.abs(delta) < MATERIAL_NOISE
+          : levelMaterial
             ? 'il materiale resta invariato dopo gli scambi forzati'
             : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} contando la dama 3 e la pedina 1: ` +
               balanceLabel(delta),
     };
 
-    return { move, notation: moveNotation(move), facts, descrizione, score };
+    return { move, notation: moveNotation(move), facts, description, score };
   });
 }
 
 /**
- * La mossa migliore secondo la sola ricerca locale. Non e Jev: serve come
- * ripiego dichiarato quando l'API non risponde, e a ordinare le candidate.
+ * The best move according to the local search alone. This is not Jev: it is a
+ * declared fallback for when the API does not answer, and an ordering for the
+ * candidates.
  */
 export function heuristicBest(annotated) {
   if (annotated.length === 0) return null;

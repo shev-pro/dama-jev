@@ -16,15 +16,15 @@
 
 <style>
   :root {
-    --sfondo: #0a0c10;
-    --pannello: #11151c;
-    --pannello-alto: #171d26;
-    --bordo: #232c39;
-    --testo: #dfe5ee;
-    --testo-tenue: #8a97a8;
+    --bg: #0a0c10;
+    --panel: #11151c;
+    --panel-raised: #171d26;
+    --border: #232c39;
+    --text: #dfe5ee;
+    --text-dim: #8a97a8;
     --jev: #3fd0c9;
-    --umano: #e8a33d;
-    --allarme: #e8685d;
+    --human: #e8a33d;
+    --alert: #e8685d;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   }
 
@@ -32,267 +32,267 @@
 
   html, body {
     margin: 0; height: 100%;
-    background: var(--sfondo); color: var(--testo);
+    background: var(--bg); color: var(--text);
     font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
   #app { display: flex; height: 100%; overflow: hidden; }
 
-  /* ---------- scacchiera ---------- */
-  #scena { position: relative; flex: 1; min-width: 0; }
-  #scena canvas { display: block; width: 100%; height: 100%; }
-  #scena::after {
+  /* ---------- board ---------- */
+  #scene { position: relative; flex: 1; min-width: 0; }
+  #scene canvas { display: block; width: 100%; height: 100%; }
+  #scene::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
     background: radial-gradient(ellipse at 50% 42%, transparent 42%, rgba(0,0,0,.62) 100%);
   }
 
-  #avviso {
+  #toast {
     position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
-    background: rgba(10,12,16,.92); border: 1px solid var(--bordo); border-radius: 999px;
-    padding: 8px 18px; font-size: 13px; color: var(--testo-tenue);
+    background: rgba(10,12,16,.92); border: 1px solid var(--border); border-radius: 999px;
+    padding: 8px 18px; font-size: 13px; color: var(--text-dim);
     opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap;
   }
-  #avviso.visibile { opacity: 1; }
+  #toast.visible { opacity: 1; }
 
-  /* ---------- pannello ---------- */
-  #pannello {
-    width: 400px; flex: 0 0 400px; background: var(--pannello);
-    border-left: 1px solid var(--bordo); display: flex; flex-direction: column; overflow: hidden;
+  /* ---------- panel ---------- */
+  #panel {
+    width: 400px; flex: 0 0 400px; background: var(--panel);
+    border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
   }
 
-  #intestazione { padding: 20px 22px 16px; border-bottom: 1px solid var(--bordo); }
-  #intestazione h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
-  #intestazione h1 span { color: var(--jev); }
-  #intestazione p { margin: 5px 0 0; font-size: 12.5px; color: var(--testo-tenue); }
+  #panel-header { padding: 20px 22px 16px; border-bottom: 1px solid var(--border); }
+  #panel-header h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+  #panel-header h1 span { color: var(--jev); }
+  #panel-header p { margin: 5px 0 0; font-size: 12.5px; color: var(--text-dim); }
 
-  #corpo { flex: 1; overflow-y: auto; padding: 18px 22px 28px; }
-  #corpo::-webkit-scrollbar { width: 9px; }
-  #corpo::-webkit-scrollbar-thumb { background: #262f3d; border-radius: 9px; }
+  #panel-body { flex: 1; overflow-y: auto; padding: 18px 22px 28px; }
+  #panel-body::-webkit-scrollbar { width: 9px; }
+  #panel-body::-webkit-scrollbar-thumb { background: #262f3d; border-radius: 9px; }
 
-  .sezione { margin-bottom: 22px; }
-  .sezione > h2 {
+  .section { margin-bottom: 22px; }
+  .section > h2 {
     margin: 0 0 10px; font-size: 10.5px; font-weight: 600; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--testo-tenue);
+    text-transform: uppercase; color: var(--text-dim);
   }
 
-  /* ---------- stato del turno ---------- */
-  #stato {
+  /* ---------- turn status ---------- */
+  #status {
     display: flex; align-items: center; gap: 11px;
-    background: var(--pannello-alto); border: 1px solid var(--bordo); border-radius: 10px;
+    background: var(--panel-raised); border: 1px solid var(--border); border-radius: 10px;
     padding: 13px 15px; font-size: 14px;
   }
-  #pallino { width: 9px; height: 9px; border-radius: 50%; background: var(--umano); flex: 0 0 auto; }
-  #stato.pensa #pallino { background: var(--jev); animation: pulsa 1.05s ease-in-out infinite; }
-  #stato.finita #pallino { background: var(--testo-tenue); }
-  @keyframes pulsa { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.78); } }
+  #status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--human); flex: 0 0 auto; }
+  #status.thinking #status-dot { background: var(--jev); animation: pulse 1.05s ease-in-out infinite; }
+  #status.over #status-dot { background: var(--text-dim); }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.78); } }
 
-  /* ---------- materiale ---------- */
-  #materiale { display: flex; gap: 10px; }
-  .conta {
-    flex: 1; background: var(--pannello-alto); border: 1px solid var(--bordo);
+  /* ---------- material ---------- */
+  #material { display: flex; gap: 10px; }
+  .count {
+    flex: 1; background: var(--panel-raised); border: 1px solid var(--border);
     border-radius: 10px; padding: 11px 13px;
   }
-  .conta .etichetta { font-size: 11px; color: var(--testo-tenue); }
-  .conta .valore { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
-  .conta.tu .valore { color: var(--umano); }
-  .conta.jev .valore { color: var(--jev); }
-  .conta .dettaglio { font-size: 11px; color: var(--testo-tenue); margin-top: 1px; }
+  .count .label { font-size: 11px; color: var(--text-dim); }
+  .count .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .count.human .value { color: var(--human); }
+  .count.jev .value { color: var(--jev); }
+  .count .detail { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
 
-  /* ---------- candidate ---------- */
-  .candidata {
+  /* ---------- candidates ---------- */
+  .candidate {
     position: relative; border: 1px solid transparent; border-radius: 9px;
     padding: 8px 10px; margin-bottom: 4px; cursor: default; overflow: hidden;
     transition: border-color .15s, background .15s;
   }
-  .candidata:hover { border-color: var(--bordo); background: var(--pannello-alto); }
-  .candidata .barra {
+  .candidate:hover { border-color: var(--border); background: var(--panel-raised); }
+  .candidate .bar {
     position: absolute; inset: 0 auto 0 0; background: rgba(63,208,201,.13);
     border-radius: 9px; transition: width .4s ease;
   }
-  .candidata.scelta .barra { background: rgba(63,208,201,.28); }
-  .candidata.scelta { border-color: rgba(63,208,201,.5); }
-  .candidata > * { position: relative; }
-  .riga-testa { display: flex; align-items: baseline; gap: 9px; }
-  .candidata .notazione { font-family: var(--mono); font-size: 13px; font-weight: 600; }
-  .candidata.scelta .notazione { color: var(--jev); }
-  .candidata .percento { margin-left: auto; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--testo-tenue); }
-  .candidata.scelta .percento { color: var(--jev); }
-  .candidata .sintesi { font-size: 12px; color: var(--testo-tenue); margin-top: 2px; }
+  .candidate.chosen .bar { background: rgba(63,208,201,.28); }
+  .candidate.chosen { border-color: rgba(63,208,201,.5); }
+  .candidate > * { position: relative; }
+  .candidate-head { display: flex; align-items: baseline; gap: 9px; }
+  .candidate .notation { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .candidate.chosen .notation { color: var(--jev); }
+  .candidate .percent { margin-left: auto; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+  .candidate.chosen .percent { color: var(--jev); }
+  .candidate .summary { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 
-  /* ---------- valutazione ---------- */
-  .valutazione { background: var(--pannello-alto); border: 1px solid var(--bordo); border-radius: 10px; padding: 12px 14px; }
-  .valutazione .avviso-lettura { font-size: 11px; color: var(--testo-tenue); margin: 0 0 9px; line-height: 1.45; }
-  .coppia { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 3px 0; }
-  .coppia .k { color: var(--testo-tenue); }
-  .coppia .v { text-align: right; }
+  /* ---------- evaluation ---------- */
+  .card { background: var(--panel-raised); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .card .caveat { font-size: 11px; color: var(--text-dim); margin: 0 0 9px; line-height: 1.45; }
+  .pair { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 3px 0; }
+  .pair .k { color: var(--text-dim); }
+  .pair .v { text-align: right; }
 
-  .metro { height: 4px; border-radius: 4px; background: #212a36; margin-top: 7px; overflow: hidden; }
-  .metro > div { height: 100%; background: var(--jev); border-radius: 4px; transition: width .4s ease; }
-  .metro.rischio > div { background: linear-gradient(90deg, var(--jev), var(--allarme)); }
+  .meter { height: 4px; border-radius: 4px; background: #212a36; margin-top: 7px; overflow: hidden; }
+  .meter > div { height: 100%; background: var(--jev); border-radius: 4px; transition: width .4s ease; }
+  .meter.risk > div { background: linear-gradient(90deg, var(--jev), var(--alert)); }
 
-  /* ---------- cronologia ---------- */
-  #cronologia { font-family: var(--mono); font-size: 12px; max-height: 190px; overflow-y: auto; }
-  #cronologia div { display: flex; gap: 10px; padding: 2px 0; color: var(--testo-tenue); }
-  #cronologia .n { width: 26px; text-align: right; color: #4a5768; }
-  #cronologia .bianco { color: var(--umano); }
-  #cronologia .nero { color: var(--jev); }
+  /* ---------- move history ---------- */
+  #history { font-family: var(--mono); font-size: 12px; max-height: 190px; overflow-y: auto; }
+  #history div { display: flex; gap: 10px; padding: 2px 0; color: var(--text-dim); }
+  #history .n { width: 26px; text-align: right; color: #4a5768; }
+  #history .white { color: var(--human); }
+  #history .black { color: var(--jev); }
 
-  /* ---------- errore ---------- */
-  #errore {
+  /* ---------- error ---------- */
+  #error-box {
     background: rgba(232,104,93,.09); border: 1px solid rgba(232,104,93,.35);
     border-radius: 10px; padding: 13px 15px;
   }
-  #errore h3 { margin: 0 0 5px; font-size: 13px; color: var(--allarme); }
-  #errore p { margin: 0 0 11px; font-size: 12.5px; color: var(--testo); line-height: 1.5; }
-  #errore .azioni { display: flex; gap: 8px; flex-wrap: wrap; }
+  #error-box h3 { margin: 0 0 5px; font-size: 13px; color: var(--alert); }
+  #error-box p { margin: 0 0 11px; font-size: 12.5px; color: var(--text); line-height: 1.5; }
+  #error-box .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
   button {
     font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 7px;
-    border: 1px solid var(--bordo); background: var(--pannello-alto); color: var(--testo);
+    border: 1px solid var(--border); background: var(--panel-raised); color: var(--text);
     cursor: pointer; transition: border-color .15s, background .15s;
   }
   button:hover { border-color: #3a4657; background: #1d2431; }
-  button.primario { background: var(--jev); border-color: var(--jev); color: #06231f; font-weight: 600; }
-  button.primario:hover { background: #56ded7; border-color: #56ded7; }
+  button.primary { background: var(--jev); border-color: var(--jev); color: #06231f; font-weight: 600; }
+  button.primary:hover { background: #56ded7; border-color: #56ded7; }
   button:disabled { opacity: .45; cursor: not-allowed; }
 
-  .nascosto { display: none !important; }
+  .hidden { display: none !important; }
 
-  /* ---------- dialog della chiave ---------- */
+  /* ---------- API key dialog ---------- */
   dialog {
-    border: 1px solid var(--bordo); border-radius: 14px; background: var(--pannello);
-    color: var(--testo); padding: 0; max-width: 440px; width: calc(100% - 40px);
+    border: 1px solid var(--border); border-radius: 14px; background: var(--panel);
+    color: var(--text); padding: 0; max-width: 440px; width: calc(100% - 40px);
   }
   dialog::backdrop { background: rgba(5,7,10,.82); backdrop-filter: blur(3px); }
-  dialog .contenuto { padding: 26px 28px 24px; }
+  dialog .dialog-body { padding: 26px 28px 24px; }
   dialog h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
   dialog h2 span { color: var(--jev); }
-  dialog p { margin: 0 0 16px; font-size: 13px; color: var(--testo-tenue); line-height: 1.55; }
+  dialog p { margin: 0 0 16px; font-size: 13px; color: var(--text-dim); line-height: 1.55; }
   dialog input {
     width: 100%; font: inherit; font-family: var(--mono); font-size: 13px; padding: 10px 12px;
-    border-radius: 8px; border: 1px solid var(--bordo); background: #0c1016; color: var(--testo);
+    border-radius: 8px; border: 1px solid var(--border); background: #0c1016; color: var(--text);
   }
   dialog input:focus { outline: none; border-color: var(--jev); }
-  dialog .nota {
-    margin: 12px 0 0; font-size: 11.5px; color: var(--testo-tenue);
-    border-left: 2px solid var(--bordo); padding-left: 11px; line-height: 1.5;
+  dialog .note {
+    margin: 12px 0 0; font-size: 11.5px; color: var(--text-dim);
+    border-left: 2px solid var(--border); padding-left: 11px; line-height: 1.5;
   }
-  dialog .pulsanti { margin-top: 18px; display: flex; justify-content: flex-end; }
-  dialog .errore-chiave { color: var(--allarme); font-size: 12.5px; margin: 10px 0 0; }
+  dialog .dialog-actions { margin-top: 18px; display: flex; justify-content: flex-end; }
+  dialog .key-error { color: var(--alert); font-size: 12.5px; margin: 10px 0 0; }
 
   @media (max-width: 900px) {
     #app { flex-direction: column; }
-    #scena { height: 52vh; flex: none; }
-    #pannello { width: 100%; flex: 1; border-left: none; border-top: 1px solid var(--bordo); }
+    #scene { height: 52vh; flex: none; }
+    #panel { width: 100%; flex: 1; border-left: none; border-top: 1px solid var(--border); }
   }
 </style>
 </head>
 <body>
 
 <div id="app">
-  <div id="scena">
-    <div id="avviso"></div>
+  <div id="scene">
+    <div id="toast"></div>
   </div>
 
-  <aside id="pannello">
-    <header id="intestazione">
+  <aside id="panel">
+    <header id="panel-header">
       <h1>Dama × <span>Jev</span></h1>
       <p>Dama internazionale 10x10. Tu il bianco, Jev il nero.</p>
     </header>
 
-    <div id="corpo">
-      <section class="sezione">
-        <div id="stato"><span id="pallino"></span><span id="stato-testo">Tocca a te.</span></div>
+    <div id="panel-body">
+      <section class="section">
+        <div id="status"><span id="status-dot"></span><span id="status-text">Tocca a te.</span></div>
       </section>
 
-      <section class="sezione">
-        <div id="materiale">
-          <div class="conta tu">
-            <div class="etichetta">Tu</div>
-            <div class="valore" id="conta-umano">20</div>
-            <div class="dettaglio" id="dettaglio-umano">20 pedine</div>
+      <section class="section">
+        <div id="material">
+          <div class="count human">
+            <div class="label">Tu</div>
+            <div class="value" id="count-human">20</div>
+            <div class="detail" id="detail-human">20 pedine</div>
           </div>
-          <div class="conta jev">
-            <div class="etichetta">Jev</div>
-            <div class="valore" id="conta-jev">20</div>
-            <div class="dettaglio" id="dettaglio-jev">20 pedine</div>
+          <div class="count jev">
+            <div class="label">Jev</div>
+            <div class="value" id="count-jev">20</div>
+            <div class="detail" id="detail-jev">20 pedine</div>
           </div>
         </div>
       </section>
 
-      <section class="sezione nascosto" id="sezione-errore">
+      <section class="section hidden" id="section-error">
         <h2>Problema</h2>
-        <div id="errore">
-          <h3 id="errore-titolo"></h3>
-          <p id="errore-testo"></p>
-          <div class="azioni">
-            <button id="riprova" class="primario">Riprova</button>
-            <button id="motore-locale">Fai muovere il motore locale</button>
+        <div id="error-box">
+          <h3 id="error-title"></h3>
+          <p id="error-text"></p>
+          <div class="actions">
+            <button id="retry" class="primary">Riprova</button>
+            <button id="local-engine">Fai muovere il motore locale</button>
           </div>
         </div>
       </section>
 
-      <section class="sezione nascosto" id="sezione-candidate">
+      <section class="section hidden" id="section-candidates">
         <h2>Dentro la testa di Jev</h2>
-        <div id="nota-scelta" class="nascosto"></div>
-        <div id="candidate"></div>
+        <div id="choice-note" class="hidden"></div>
+        <div id="candidates"></div>
       </section>
 
-      <section class="sezione nascosto" id="sezione-valutazione">
+      <section class="section hidden" id="section-evaluation">
         <h2>Valutazione della posizione</h2>
-        <div class="valutazione">
-          <p class="avviso-lettura">
+        <div class="card">
+          <p class="caveat">
             Postura e rischio sono due giudizi separati sulla posizione, chiesti nella stessa
             richiesta ma indipendenti dalla scelta della mossa: non sono la spiegazione di
             <em>perché</em> Jev ha mosso così.
           </p>
-          <div class="coppia"><span class="k">Postura</span><span class="v" id="postura">—</span></div>
-          <div class="metro"><div id="metro-postura" style="width:0%"></div></div>
-          <div class="coppia" style="margin-top:10px"><span class="k">Rischio percepito</span><span class="v" id="rischio">—</span></div>
-          <div class="metro rischio"><div id="metro-rischio" style="width:0%"></div></div>
-          <div class="coppia" style="margin-top:10px"><span class="k">Confidence sulla mossa</span><span class="v" id="confidence">—</span></div>
-          <p class="avviso-lettura" style="margin:8px 0 0" id="nota-confidence"></p>
+          <div class="pair"><span class="k">Postura</span><span class="v" id="posture">—</span></div>
+          <div class="meter"><div id="meter-posture" style="width:0%"></div></div>
+          <div class="pair" style="margin-top:10px"><span class="k">Rischio percepito</span><span class="v" id="risk">—</span></div>
+          <div class="meter risk"><div id="meter-risk" style="width:0%"></div></div>
+          <div class="pair" style="margin-top:10px"><span class="k">Confidence sulla mossa</span><span class="v" id="confidence">—</span></div>
+          <p class="caveat" style="margin:8px 0 0" id="confidence-note"></p>
         </div>
       </section>
 
-      <section class="sezione nascosto" id="sezione-costi">
+      <section class="section hidden" id="section-usage">
         <h2>Chiamate a TypeSafe</h2>
-        <div class="valutazione">
-          <div class="coppia"><span class="k">Ultimo turno</span><span class="v" id="costo-turno">—</span></div>
-          <div class="coppia"><span class="k">Totale partita</span><span class="v" id="costo-totale">—</span></div>
-          <div class="coppia"><span class="k">Modello</span><span class="v" id="modello">—</span></div>
+        <div class="card">
+          <div class="pair"><span class="k">Ultimo turno</span><span class="v" id="usage-turn">—</span></div>
+          <div class="pair"><span class="k">Totale partita</span><span class="v" id="usage-total">—</span></div>
+          <div class="pair"><span class="k">Modello</span><span class="v" id="usage-model">—</span></div>
         </div>
       </section>
 
-      <section class="sezione">
+      <section class="section">
         <h2>Mosse</h2>
-        <div id="cronologia"></div>
+        <div id="history"></div>
       </section>
 
-      <section class="sezione">
-        <button id="nuova-partita">Nuova partita</button>
+      <section class="section">
+        <button id="new-game">Nuova partita</button>
       </section>
     </div>
   </aside>
 </div>
 
-<dialog id="dialog-chiave">
-  <form method="dialog" class="contenuto" id="form-chiave">
+<dialog id="key-dialog">
+  <form method="dialog" class="dialog-body" id="key-form">
     <h2>La tua chiave <span>TypeSafe</span></h2>
     <p>
       L'avversario è Jev, il System One model di TypeSafe. Per farlo giocare serve la tua
       chiave API.
     </p>
-    <input id="input-chiave" type="password" autocomplete="off" spellcheck="false"
+    <input id="key-input" type="password" autocomplete="off" spellcheck="false"
            placeholder="ts-..." aria-label="Chiave API TypeSafe">
-    <p class="nota">
+    <p class="note">
       La chiave resta in una variabile di questa pagina: non finisce in localStorage, non
       viene scritta su disco e il server locale la inoltra senza registrarla. Ricaricando
       (Cmd+Shift+R) te la richiede di nuovo.
     </p>
-    <p class="errore-chiave nascosto" id="errore-chiave"></p>
-    <div class="pulsanti"><button class="primario" id="conferma-chiave" value="ok">Gioca</button></div>
+    <p class="key-error hidden" id="key-error"></p>
+    <div class="dialog-actions"><button class="primary" id="key-submit" value="ok">Gioca</button></div>
   </form>
 </dialog>
 

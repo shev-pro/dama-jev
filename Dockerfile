@@ -1,5 +1,5 @@
-# Immagine minima: il gioco non ha dipendenze npm, quindi niente install e
-# niente build. Si copiano i file e si avvia il server della libreria standard.
+# A minimal image: the game has no npm dependencies, so there is nothing to
+# install and nothing to build. Copy the files and start the stdlib server.
 FROM node:22-alpine
 
 WORKDIR /app
@@ -8,9 +8,9 @@ COPY package.json ./
 COPY server.js index.html ./
 COPY src ./src
 
-# Dentro un container serve ascoltare su tutte le interfacce, altrimenti la
-# mappatura delle porte non raggiunge il processo. A limitare chi puo arrivare
-# ci pensa il binding sull'host (vedi docker-compose.yml).
+# Inside a container we must listen on every interface, or the port mapping
+# never reaches the process. Who can actually get here is limited by the
+# host-side port binding instead (see docker-compose.yml).
 ENV HOST=0.0.0.0 \
     PORT=5173 \
     NODE_ENV=production

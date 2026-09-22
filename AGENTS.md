@@ -1,30 +1,40 @@
-# Orientamento
+# Orientation
 
-Dama internazionale 10x10 in 3D contro Jev, il System One model di TypeSafe.
+International draughts (10×10) in 3D against Jev, the System One model from TypeSafe.
 
-**Leggi prima [README.md](README.md)**: contiene l'architettura, il motivo per cui esiste un server
-locale (il CORS di `api.typesafe.ai`), la divisione del lavoro fra codice e modello, e la mappa dei
-file.
+**Read [README.md](README.md) first**: it covers the architecture, why a local server exists (the
+CORS allowlist on `api.typesafe.ai`), how the work is split between code and model, and the file
+map.
 
-## Prima di toccare il codice
+## Before touching the code
 
-- **`src/rules.js` è la fonte di verità sulle regole.** Nessun altro modulo decide cosa è legale. È
-  coperto dai test e dal perft: se lo modifichi, `node --test` deve restare verde e il perft deve
-  continuare a coincidere con i valori pubblicati (tabella in fondo al README).
-- **Al modello non si chiedono numeri.** `jev-1.13` non conta in modo affidabile. Tutto ciò che si
-  conta — pezzi, catture, materiale, conseguenze a poche mosse — si calcola in `src/analysis.js` e
-  gli si consegna già fatto. Vale anche per le funzionalità nuove.
-- **La chiave API non si scrive da nessuna parte.** Vive in una variabile di `src/app.js` e transita
-  dal proxy. Niente localStorage, niente log, niente file.
-- **Gli errori dell'API si mostrano come sono.** Nessuna mossa scelta da altri viene presentata come
-  una scelta di Jev.
+- **`src/rules.js` is the source of truth on the rules.** No other module decides what is legal. It
+  is covered by the tests and by perft: if you change it, `node --test` must stay green and the
+  perft totals must keep matching the published values (table at the end of the README).
+- **Never ask the model for a number.** `jev-1.13` does not count reliably. Everything that gets
+  counted — pieces, captures, material, consequences a few moves out — is computed in
+  `src/analysis.js` and handed over already done. That holds for new features too.
+- **The API key is never written anywhere.** It lives in a variable in `src/app.js` and passes
+  through the proxy. No localStorage, no logs, no files.
+- **API errors are shown as they are.** A move chosen by anything other than Jev is never presented
+  as Jev's choice.
 
-## Comandi
+## Language
+
+Code, comments and tests are English. Two things stay Italian on purpose, and should stay that way:
+
+- **The game interface** — the whole thing is an Italian game of *dama*.
+- **Everything sent to Jev**, in `src/jev.js` and the descriptions built in `src/analysis.js`. That
+  is prompt content. Translating it changes what the model reads, and would invalidate the
+  behaviour that was verified against it.
+
+## Commands
 
 ```bash
-node --test        # i test
-node server.js     # il gioco su http://localhost:5173
+node --test        # the tests
+node server.js     # the game on http://localhost:5173
+docker compose up --build
 ```
 
-Il contratto dell'API è documentato dal vivo su <https://docs.typesafe.ai>. Le pagine sono servite
-anche in markdown aggiungendo `.md` al percorso.
+The API contract is documented live at <https://docs.typesafe.ai>. Pages are also served as
+markdown by appending `.md` to the path.

@@ -5,29 +5,29 @@ import { initialPosition, positionFrom, applyMove, legalMoves } from '../src/rul
 import { annotateMoves } from '../src/analysis.js';
 import { buildRequest, interpret, askJev, JevError, MODEL, MAX_OPTIONS } from '../src/jev.js';
 
-/** Una posizione con il nero (Jev) al tratto e piu di una mossa possibile. */
+/** A position with Black (Jev) to move and more than one option. */
 function jevToMove() {
   const start = initialPosition();
   const state = applyMove(start, legalMoves(start).find((m) => m.from === 32 && m.to === 28));
   return { state, annotated: annotateMoves(state) };
 }
 
-test('la richiesta ha la forma che vuole il contratto System One', () => {
+test('the request has the shape the System One contract asks for', () => {
   const { state, annotated } = jevToMove();
   const { request, candidates } = buildRequest({ state, annotated, jevColor: 'black', lastOpponentMove: '32-28' });
 
   assert.equal(request.model, MODEL);
-  assert.deepEqual(Object.keys(request.questions).sort(), ['mossa', 'postura', 'rischio']);
-  assert.equal(request.questions.mossa.type, 'choice');
-  assert.equal(request.questions.postura.type, 'choice');
-  assert.equal(request.questions.rischio.type, 'score');
+  assert.deepEqual(Object.keys(request.questions).sort(), ['move', 'posture', 'risk']);
+  assert.equal(request.questions.move.type, 'choice');
+  assert.equal(request.questions.posture.type, 'choice');
+  assert.equal(request.questions.risk.type, 'score');
 
-  // Score vuole un array ordinato di livelli, fra 2 e 10.
-  assert.ok(Array.isArray(request.questions.rischio.criteria));
-  assert.ok(request.questions.rischio.criteria.length >= 2 && request.questions.rischio.criteria.length <= 10);
+  // Score wants an ordered array of levels, between 2 and 10 of them.
+  assert.ok(Array.isArray(request.questions.risk.criteria));
+  assert.ok(request.questions.risk.criteria.length >= 2 && request.questions.risk.criteria.length <= 10);
 
-  // Choice vuole una mappa opzione -> descrizione, al massimo 255 voci.
-  const criteria = request.questions.mossa.criteria;
+  // Choice wants a map of option -> description, at most 255 entries.
+  const criteria = request.questions.move.criteria;
   assert.equal(typeof criteria, 'object');
   assert.ok(!Array.isArray(criteria));
   assert.ok(Object.keys(criteria).length <= 255);
@@ -35,17 +35,17 @@ test('la richiesta ha la forma che vuole il contratto System One', () => {
   assert.ok(MAX_OPTIONS <= 255);
 });
 
-test('le chiavi della Choice sono esattamente le mosse legali di Jev', () => {
+test('the Choice keys are exactly Jev\'s legal moves', () => {
   const { state, annotated } = jevToMove();
   const { request } = buildRequest({ state, annotated, jevColor: 'black' });
 
   assert.deepEqual(
-    Object.keys(request.questions.mossa.criteria).sort(),
+    Object.keys(request.questions.move.criteria).sort(),
     annotated.map((entry) => entry.notation).sort(),
   );
 });
 
-test('lo stato consegna i conteggi gia fatti, perche Jev non conta', () => {
+test('the state hands over the counts already done, because Jev does not count', () => {
   const { state, annotated } = jevToMove();
   const { request } = buildRequest({ state, annotated, jevColor: 'black', lastOpponentMove: '32-28' });
 
@@ -58,7 +58,7 @@ test('lo stato consegna i conteggi gia fatti, perche Jev non conta', () => {
   assert.equal(request.state.scacchiera.split('\n').length, 10);
 });
 
-test('interpret rimappa la scelta di Jev sulla mossa vera', () => {
+test('interpret maps Jev\'s choice back onto the real move', () => {
   const { state, annotated } = jevToMove();
   const { candidates } = buildRequest({ state, annotated, jevColor: 'black' });
   const target = candidates[2];
@@ -69,9 +69,9 @@ test('interpret rimappa la scelta di Jev sulla mossa vera', () => {
   const result = interpret({
     model: 'jev-1.13.0',
     answers: {
-      mossa: { type: 'choice', choice: target.notation, probabilities, confidence: 0.77 },
-      postura: { type: 'choice', choice: 'consolidamento', probabilities: { consolidamento: 0.6 }, confidence: 0.4 },
-      rischio: { type: 'score', score: 1.2, legend: { 0: 'x' }, probabilities: { 0: 0.4 }, confidence: 0.3 },
+      move: { type: 'choice', choice: target.notation, probabilities, confidence: 0.77 },
+      posture: { type: 'choice', choice: 'consolidamento', probabilities: { consolidamento: 0.6 }, confidence: 0.4 },
+      risk: { type: 'score', score: 1.2, legend: { 0: 'x' }, probabilities: { 0: 0.4 }, confidence: 0.3 },
     },
     usage: { input_tokens: 900, output_tokens: 12 },
   }, candidates);
@@ -84,14 +84,14 @@ test('interpret rimappa la scelta di Jev sulla mossa vera', () => {
   assert.equal(result.usage.input_tokens, 900);
   assert.equal(result.note, null);
 
-  // Il ranking copre ogni candidata, ordinato dal piu probabile.
+  // The ranking covers every candidate, most probable first.
   assert.equal(result.ranking.length, candidates.length);
   assert.equal(result.ranking[0].notation, target.notation);
   assert.equal(result.ranking[0].chosen, true);
   assert.ok(result.ranking.every((row, i, all) => i === 0 || all[i - 1].probability >= row.probability));
 });
 
-test('se Jev risponde una mossa inesistente si ripiega sulla piu probabile valida, dicendolo', () => {
+test('an answer naming no legal move falls back to the most probable valid one, and says so', () => {
   const { state, annotated } = jevToMove();
   const { candidates } = buildRequest({ state, annotated, jevColor: 'black' });
 
@@ -99,41 +99,41 @@ test('se Jev risponde una mossa inesistente si ripiega sulla piu probabile valid
   probabilities[candidates[1].notation] = 0.9;
 
   const result = interpret({
-    answers: { mossa: { type: 'choice', choice: '99-99', probabilities, confidence: 0.5 } },
+    answers: { move: { type: 'choice', choice: '99-99', probabilities, confidence: 0.5 } },
   }, candidates);
 
   assert.equal(result.entry.notation, candidates[1].notation);
   assert.match(result.note, /non e fra le mosse legali/);
 });
 
-test('se non si recupera nessuna mossa valida si alza un errore invece di inventare', () => {
+test('when no valid move can be recovered it raises instead of inventing one', () => {
   const { state, annotated } = jevToMove();
   const { candidates } = buildRequest({ state, annotated, jevColor: 'black' });
 
   assert.throws(
-    () => interpret({ answers: { mossa: { type: 'choice', choice: '99-99', probabilities: { '98-98': 1 } } } }, candidates),
+    () => interpret({ answers: { move: { type: 'choice', choice: '99-99', probabilities: { '98-98': 1 } } } }, candidates),
     JevError,
   );
   assert.throws(() => interpret({ answers: {} }, candidates), JevError);
 });
 
-test('askJev manda la chiave nellheader e misura la latenza', async () => {
+test('askJev sends the key in the header and measures latency', async () => {
   let seen = null;
   const fetchImpl = async (url, init) => {
     seen = { url, init };
     return { ok: true, status: 200, text: async () => JSON.stringify({ model: 'jev-1.13.0', answers: {}, usage: {} }) };
   };
 
-  const { body, latencyMs } = await askJev({ apiKey: 'chiave-di-prova', request: { model: MODEL }, fetchImpl });
+  const { body, latencyMs } = await askJev({ apiKey: 'test-key', request: { model: MODEL }, fetchImpl });
 
   assert.equal(seen.url, '/api/systemone');
-  assert.equal(seen.init.headers.Authorization, 'Bearer chiave-di-prova');
+  assert.equal(seen.init.headers.Authorization, 'Bearer test-key');
   assert.equal(JSON.parse(seen.init.body).model, MODEL);
   assert.equal(body.model, 'jev-1.13.0');
   assert.ok(Number.isFinite(latencyMs));
 });
 
-test('askJev riporta il messaggio vero di TypeSafe sugli errori', async () => {
+test('askJev reports TypeSafe\'s real message on errors', async () => {
   const fetchImpl = async () => ({
     ok: false,
     status: 401,
@@ -141,7 +141,7 @@ test('askJev riporta il messaggio vero di TypeSafe sugli errori', async () => {
   });
 
   await assert.rejects(
-    () => askJev({ apiKey: 'sbagliata', request: {}, fetchImpl }),
+    () => askJev({ apiKey: 'wrong', request: {}, fetchImpl }),
     (error) => {
       assert.ok(error instanceof JevError);
       assert.equal(error.status, 401);
@@ -152,8 +152,8 @@ test('askJev riporta il messaggio vero di TypeSafe sugli errori', async () => {
   );
 });
 
-test('una posizione con una sola mossa legale non ha bisogno di Jev', () => {
-  // Presa obbligatoria unica: non c e niente da scegliere, e la chiamata si evita.
+test('a position with a single legal move needs no call to Jev', () => {
+  // One compulsory capture: there is nothing to choose, so the call is skipped.
   const state = positionFrom({ 32: 'w', 28: 'b', 1: 'b' }, 'white');
   assert.equal(annotateMoves(state).length, 1);
 });

@@ -3,17 +3,17 @@ services:
     build: .
     image: dama-jev
     container_name: dama-jev
-    # Legato a loopback di proposito: il server inoltra la chiave API di chi
-    # gioca, e non ha senso che sia raggiungibile dalla rete locale. Per
-    # esporlo davvero serve anche aggiungere il nome host ad ALLOWED_HOSTS.
+    # Bound to loopback on purpose: the server forwards the player's API key,
+    # and there is no reason for it to be reachable from the local network.
+    # Exposing it for real also means adding that host name to ALLOWED_HOSTS.
     ports:
       - "127.0.0.1:5173:5173"
     restart: unless-stopped
 
-    # Dietro un proxy aziendale che ispeziona il TLS (Zscaler, Cato, Netskope...)
-    # il container non si fida della CA che vede al posto di quella di TypeSafe,
-    # e ogni chiamata fallisce con SELF_SIGNED_CERT_IN_CHAIN. Il rimedio e dargli
-    # la CA aziendale, non disattivare la verifica. Vedi il README.
+    # Behind a TLS-inspecting corporate proxy (Zscaler, Cato, Netskope and so on)
+    # the container does not trust the CA it is shown in place of TypeSafe's, and
+    # every call fails with SELF_SIGNED_CERT_IN_CHAIN. The fix is to give it the
+    # corporate CA, not to switch verification off. See the README.
     # volumes:
     #   - ./certs:/certs:ro
     # environment:

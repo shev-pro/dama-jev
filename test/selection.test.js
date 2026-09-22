@@ -4,73 +4,73 @@ import assert from 'node:assert/strict';
 import { initialPosition, positionFrom, legalMoves } from '../src/rules.js';
 import { createSelection, selectionTargets, selectionHead, advanceSelection } from '../src/selection.js';
 
-test('selezionare una casella vuota o bloccata non apre niente', () => {
+test('selecting an empty or blocked square opens nothing', () => {
   const moves = legalMoves(initialPosition());
-  assert.equal(createSelection(moves, 23), null, 'casella vuota');
-  assert.equal(createSelection(moves, 40), null, 'pedina murata dietro le proprie');
+  assert.equal(createSelection(moves, 23), null, 'empty square');
+  assert.equal(createSelection(moves, 40), null, 'man walled in behind its own');
   assert.equal(selectionTargets(null).length, 0);
 });
 
-test('una mossa tranquilla si chiude al primo click sulla destinazione', () => {
+test('a quiet move closes on the first click on its destination', () => {
   const moves = legalMoves(initialPosition());
-  const selezione = createSelection(moves, 32);
+  const selection = createSelection(moves, 32);
 
-  assert.equal(selectionHead(selezione), 32);
-  assert.deepEqual(selectionTargets(selezione).sort(), [27, 28]);
+  assert.equal(selectionHead(selection), 32);
+  assert.deepEqual(selectionTargets(selection).sort(), [27, 28]);
 
-  const { selection, move } = advanceSelection(selezione, 28);
-  assert.equal(selection, null, 'la selezione si chiude');
-  assert.equal(move.from, 32);
-  assert.equal(move.to, 28);
+  const next = advanceSelection(selection, 28);
+  assert.equal(next.selection, null, 'the selection closes');
+  assert.equal(next.move.from, 32);
+  assert.equal(next.move.to, 28);
 });
 
-test('un click fuori bersaglio non fa niente', () => {
-  const selezione = createSelection(legalMoves(initialPosition()), 32);
-  const risultato = advanceSelection(selezione, 19);
+test('a click off target changes nothing', () => {
+  const selection = createSelection(legalMoves(initialPosition()), 32);
+  const result = advanceSelection(selection, 19);
 
-  assert.equal(risultato.move, null);
-  assert.equal(risultato.selection, selezione, 'la selezione resta quella di prima');
+  assert.equal(result.move, null);
+  assert.equal(result.selection, selection, 'the selection is left as it was');
 });
 
-test('la catena si percorre un salto alla volta', () => {
-  // 33x24x13: due salti, quindi due click dopo la selezione del pezzo.
+test('a chain is walked one hop at a time', () => {
+  // 33x24x13: two hops, so two clicks after picking the piece up.
   const moves = legalMoves(positionFrom({ 33: 'w', 29: 'b', 19: 'b' }, 'white'));
-  let selezione = createSelection(moves, 33);
+  let selection = createSelection(moves, 33);
 
-  assert.deepEqual(selectionTargets(selezione), [24]);
+  assert.deepEqual(selectionTargets(selection), [24]);
 
-  let passo = advanceSelection(selezione, 24);
-  assert.equal(passo.move, null, 'la catena non e ancora finita');
-  selezione = passo.selection;
+  let step = advanceSelection(selection, 24);
+  assert.equal(step.move, null, 'the chain is not over yet');
+  selection = step.selection;
 
-  assert.equal(selectionHead(selezione), 24);
-  assert.deepEqual(selectionTargets(selezione), [13]);
+  assert.equal(selectionHead(selection), 24);
+  assert.deepEqual(selectionTargets(selection), [13]);
 
-  passo = advanceSelection(selezione, 13);
-  assert.equal(passo.selection, null);
-  assert.deepEqual(passo.move.captured, [29, 19]);
+  step = advanceSelection(selection, 13);
+  assert.equal(step.selection, null);
+  assert.deepEqual(step.move.captured, [29, 19]);
 });
 
-test('due catene con la stessa partenza e lo stesso arrivo si distinguono dal salto di mezzo', () => {
-  // 46x19x5 e 46x14x5 mangiano gli stessi pezzi e finiscono sulla stessa casella:
-  // scegliendo partenza e arrivo sarebbero indistinguibili.
+test('two chains sharing origin and destination are told apart by the middle hop', () => {
+  // 46x19x5 and 46x14x5 take the same pieces and end on the same square:
+  // picking an origin and a destination could not distinguish them.
   const moves = legalMoves(positionFrom({ 46: 'W', 23: 'b', 10: 'b' }, 'white'));
-  const selezione = createSelection(moves, 46);
+  const selection = createSelection(moves, 46);
 
   assert.equal(moves.length, 2);
-  assert.deepEqual(selectionTargets(selezione).sort((a, b) => a - b), [14, 19]);
+  assert.deepEqual(selectionTargets(selection).sort((a, b) => a - b), [14, 19]);
 
-  const viaQuattordici = advanceSelection(selezione, 14);
-  assert.deepEqual(selectionTargets(viaQuattordici.selection), [5]);
-  assert.deepEqual(advanceSelection(viaQuattordici.selection, 5).move.path, [46, 14, 5]);
+  const viaFourteen = advanceSelection(selection, 14);
+  assert.deepEqual(selectionTargets(viaFourteen.selection), [5]);
+  assert.deepEqual(advanceSelection(viaFourteen.selection, 5).move.path, [46, 14, 5]);
 
-  const viaDiciannove = advanceSelection(selezione, 19);
-  assert.deepEqual(advanceSelection(viaDiciannove.selection, 5).move.path, [46, 19, 5]);
+  const viaNineteen = advanceSelection(selection, 19);
+  assert.deepEqual(advanceSelection(viaNineteen.selection, 5).move.path, [46, 19, 5]);
 });
 
-test('con la presa obbligatoria i pezzi che non mangiano non si selezionano', () => {
+test('with capture compulsory, pieces that cannot take are not selectable', () => {
   const moves = legalMoves(positionFrom({ 32: 'w', 35: 'w', 28: 'b' }, 'white'));
 
-  assert.ok(createSelection(moves, 32), 'il pezzo che mangia si seleziona');
-  assert.equal(createSelection(moves, 35), null, 'il pezzo che non mangia no');
+  assert.ok(createSelection(moves, 32), 'the piece that captures is selectable');
+  assert.equal(createSelection(moves, 35), null, 'the one that does not is not');
 });

@@ -1,12 +1,17 @@
 /**
- * Il client di Jev: costruisce la richiesta System One, la manda attraverso il
- * proxy locale e rimappa la risposta sulle mosse vere.
+ * The Jev client: builds the System One request, sends it through the local
+ * proxy, and maps the answer back onto real moves.
  *
- * Il modello non genera testo e non ragiona ad alta voce: restituisce un
- * giudizio tipizzato con la distribuzione di probabilita. Il compito di questo
- * modulo e presentargli una domanda onesta, con le opzioni gia annotate dei
- * fatti che lui non saprebbe calcolare, e riportare indietro la sua risposta
- * senza abbellirla.
+ * The model does not generate text and does not reason out loud: it returns a
+ * typed judgement with a probability distribution. This module's job is to put
+ * an honest question in front of it, with the options already annotated with
+ * the facts it could not work out itself, and to report the answer back without
+ * dressing it up.
+ *
+ * Note: everything inside `state` and `questions` is written in Italian on
+ * purpose. That is the prompt, and the whole game speaks Italian. The question
+ * keys, by contrast, are never sent to the model - the docs are explicit about
+ * that - so they are English.
  */
 
 import { renderBoard, BOARD_LEGEND, piecesOf } from './notation.js';
@@ -14,7 +19,7 @@ import { renderBoard, BOARD_LEGEND, piecesOf } from './notation.js';
 export const MODEL = 'jev-latest';
 export const ENDPOINT = '/api/systemone';
 
-/** L'API ne accetta 255; restiamo sotto, e comunque ordinate per qualita. */
+/** The API accepts 255; we stay below, and always ordered by quality. */
 export const MAX_OPTIONS = 200;
 
 const POSTURE_OPTIONS = {
@@ -36,9 +41,9 @@ const RISK_LEVELS = [
 const phaseOf = (total) => (total > 30 ? 'apertura' : total > 14 ? 'mediogioco' : 'finale');
 
 /**
- * Le candidate da mandare al modello. In dama i numeri sono piccoli, ma se una
- * posizione di dame volanti ne producesse troppe si tagliano le peggiori, mai
- * le migliori: l'ordine viene dalla ricerca locale.
+ * The candidates to send. In draughts the numbers are small, but if a position
+ * full of flying kings ever produced too many, the worst are dropped and never
+ * the best: the ordering comes from the local search.
  */
 function selectCandidates(annotated) {
   if (annotated.length <= MAX_OPTIONS) return { candidates: annotated, dropped: 0 };
@@ -53,7 +58,7 @@ export function buildRequest({ state, annotated, jevColor, lastOpponentMove = nu
   const { candidates, dropped } = selectCandidates(annotated);
 
   const criteria = {};
-  for (const entry of candidates) criteria[entry.notation] = entry.descrizione;
+  for (const entry of candidates) criteria[entry.notation] = entry.description;
 
   const request = {
     model: MODEL,
@@ -76,7 +81,7 @@ export function buildRequest({ state, annotated, jevColor, lastOpponentMove = nu
       mosse_recenti: recentMoves,
     },
     questions: {
-      mossa: {
+      move: {
         type: 'choice',
         instructions: {
           situazione: 'Stai giocando una partita di dama internazionale 10x10 contro un avversario umano. Tocca a te.',
@@ -95,7 +100,7 @@ export function buildRequest({ state, annotated, jevColor, lastOpponentMove = nu
         },
         criteria,
       },
-      postura: {
+      posture: {
         type: 'choice',
         instructions: {
           domanda: 'Guardando la posizione nel suo insieme, quale atteggiamento ti conviene adesso?',
@@ -103,7 +108,7 @@ export function buildRequest({ state, annotated, jevColor, lastOpponentMove = nu
         },
         criteria: POSTURE_OPTIONS,
       },
-      rischio: {
+      risk: {
         type: 'score',
         instructions: {
           domanda: 'Quanto e pericolosa per te la posizione in questo momento?',
@@ -170,15 +175,15 @@ export async function askJev({ apiKey, request, signal, fetchImpl = globalThis.f
 }
 
 /**
- * Rimappa la risposta sulle mosse vere.
+ * Maps the answer back onto real moves.
  *
- * `choice` e per definizione l'opzione con la probabilita piu alta, ma se per
- * qualsiasi motivo tornasse una stringa che non corrisponde a nessuna candidata
- * si ripiega sulla piu probabile fra quelle valide, dicendolo. Non si gioca mai
- * una mossa inventata spacciandola per una scelta di Jev.
+ * `choice` is by definition the option with the highest probability, but if for
+ * any reason it came back as a string matching no candidate, we fall back to
+ * the most probable option that is legal, and say so. A move is never invented
+ * and passed off as Jev's choice.
  */
 export function interpret(body, candidates) {
-  const answer = body?.answers?.mossa;
+  const answer = body?.answers?.move;
   if (!answer || answer.type !== 'choice') {
     throw new JevError('La risposta di TypeSafe non contiene la scelta della mossa.', { body });
   }
@@ -202,7 +207,7 @@ export function interpret(body, candidates) {
       `Ho giocato ${entry.notation}, la piu probabile fra quelle valide.`;
   }
 
-  // La distribuzione completa, ordinata, con l'annotazione di ogni mossa a fianco.
+  // The full distribution, ordered, with each move's annotation alongside.
   const ranking = candidates
     .map((candidate) => ({
       entry: candidate,
@@ -212,8 +217,8 @@ export function interpret(body, candidates) {
     }))
     .sort((a, b) => b.probability - a.probability);
 
-  const posture = body?.answers?.postura ?? null;
-  const risk = body?.answers?.rischio ?? null;
+  const posture = body?.answers?.posture ?? null;
+  const risk = body?.answers?.risk ?? null;
 
   return {
     entry,

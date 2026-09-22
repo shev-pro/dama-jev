@@ -1,69 +1,69 @@
 /**
- * La scacchiera in tre dimensioni.
+ * The board in three dimensions.
  *
- * Questo modulo non sa niente di regole: riceve posizioni e mosse gia
- * validate, le disegna e le anima, e dice verso l'alto su quale casella ha
- * cliccato l'utente. Tutte le decisioni di gioco stanno altrove.
+ * This module knows nothing about the rules: it receives positions and moves
+ * that have already been validated, draws and animates them, and reports
+ * upwards which square the user clicked. Every game decision lives elsewhere.
  */
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EMPTY, isKing, squareToRC } from './rules.js';
 
-const COLORI = {
-  scuro: 0x1d2733,
-  chiaro: 0xd9cbb4,
-  cornice: 0x3a2a1c,
-  corniceBordo: 0x241a11,
-  umano: 0xe8ddc8,
+const COLORS = {
+  dark: 0x1d2733,
+  light: 0xd9cbb4,
+  frame: 0x3a2a1c,
+  frameEdge: 0x241a11,
+  human: 0xe8ddc8,
   jev: 0x113f42,
-  jevLuce: 0x0c2f33,
-  oro: 0xc9a227,
-  selezione: 0xe8a33d,
-  bersaglio: 0x3fd0c9,
-  scia: 0x2a6b74,
+  jevGlow: 0x0c2f33,
+  gold: 0xc9a227,
+  selection: 0xe8a33d,
+  target: 0x3fd0c9,
+  trail: 0x2a6b74,
 };
 
-const RAGGIO = 0.37;
-const ALTEZZA_PEDINA = 0.17;
-const ALTEZZA_DISCO_DAMA = 0.14;
+const RADIUS = 0.37;
+const MAN_HEIGHT = 0.17;
+const KING_DISC_HEIGHT = 0.14;
 
-/** Il centro di una casella nel mondo: x cresce verso destra, z verso chi guarda. */
-function centroCasella(square) {
+/** A square's centre in world space: x grows to the right, z towards the viewer. */
+function squareCentre(square) {
   const [row, col] = squareToRC(square);
   return new THREE.Vector3(col - 4.5, 0, row - 4.5);
 }
 
-function profiloDisco(raggio, altezza) {
-  const smusso = 0.045;
+function discProfile(radius, height) {
+  const bevel = 0.045;
   return [
     new THREE.Vector2(0, 0),
-    new THREE.Vector2(raggio - smusso, 0),
-    new THREE.Vector2(raggio, smusso),
-    new THREE.Vector2(raggio, altezza - smusso),
-    new THREE.Vector2(raggio - smusso, altezza),
-    new THREE.Vector2(0, altezza),
+    new THREE.Vector2(radius - bevel, 0),
+    new THREE.Vector2(radius, bevel),
+    new THREE.Vector2(radius, height - bevel),
+    new THREE.Vector2(radius - bevel, height),
+    new THREE.Vector2(0, height),
   ];
 }
 
-const facile = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
-/** Le etichette con i numeri delle caselle, disegnate una volta sola su una texture. */
-function texturaNumeri() {
-  const lato = 1024;
+/** The square numbers, drawn once onto a single texture. */
+function numbersTexture() {
+  const side = 1024;
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = lato;
+  canvas.width = canvas.height = side;
   const ctx = canvas.getContext('2d');
-  const passo = lato / 10;
+  const step = side / 10;
 
-  ctx.font = `600 ${Math.round(passo * 0.24)}px ui-monospace, Menlo, monospace`;
+  ctx.font = `600 ${Math.round(step * 0.24)}px ui-monospace, Menlo, monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(160, 182, 205, 0.42)';
 
   for (let square = 1; square <= 50; square++) {
     const [row, col] = squareToRC(square);
-    ctx.fillText(String(square), (col + 0.5) * passo, (row + 0.5) * passo + passo * 0.29);
+    ctx.fillText(String(square), (col + 0.5) * step, (row + 0.5) * step + step * 0.29);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -86,9 +86,9 @@ export function createScene(container, { onPick } = {}) {
   scene.background = new THREE.Color(0x0a0c10);
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-  const DIREZIONE_CAMERA = new THREE.Vector3(0, 11.5, 11).normalize();
-  const RAGGIO_INQUADRATURA = 7.9; // mezza scacchiera piu un margine di cornice
-  camera.position.copy(DIREZIONE_CAMERA).multiplyScalar(16);
+  const CAMERA_DIRECTION = new THREE.Vector3(0, 11.5, 11).normalize();
+  const FRAMING_RADIUS = 7.9; // half the board plus a margin for the frame
+  camera.position.copy(CAMERA_DIRECTION).multiplyScalar(16);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 0, 0);
@@ -96,183 +96,183 @@ export function createScene(container, { onPick } = {}) {
   controls.dampingFactor = 0.08;
   controls.minDistance = 9;
   controls.maxDistance = 34;
-  controls.maxPolarAngle = Math.PI / 2.12; // mai sotto il piano della scacchiera
+  controls.maxPolarAngle = Math.PI / 2.12; // never below the plane of the board
   controls.enablePan = false;
 
-  // ---------- luci ----------
+  // ---------- lighting ----------
   scene.add(new THREE.HemisphereLight(0x9fb4cc, 0x090b0f, 0.5));
 
-  const chiave = new THREE.DirectionalLight(0xfff2dc, 2.1);
-  chiave.position.set(6.5, 13, 7.5);
-  chiave.castShadow = true;
-  chiave.shadow.mapSize.set(2048, 2048);
-  chiave.shadow.camera.left = -9;
-  chiave.shadow.camera.right = 9;
-  chiave.shadow.camera.top = 9;
-  chiave.shadow.camera.bottom = -9;
-  chiave.shadow.camera.near = 1;
-  chiave.shadow.camera.far = 32;
-  chiave.shadow.bias = -0.0012;
-  chiave.shadow.normalBias = 0.02;
-  scene.add(chiave);
+  const keyLight = new THREE.DirectionalLight(0xfff2dc, 2.1);
+  keyLight.position.set(6.5, 13, 7.5);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.left = -9;
+  keyLight.shadow.camera.right = 9;
+  keyLight.shadow.camera.top = 9;
+  keyLight.shadow.camera.bottom = -9;
+  keyLight.shadow.camera.near = 1;
+  keyLight.shadow.camera.far = 32;
+  keyLight.shadow.bias = -0.0012;
+  keyLight.shadow.normalBias = 0.02;
+  scene.add(keyLight);
 
-  const riempimento = new THREE.DirectionalLight(0x6f8fb5, 0.45);
-  riempimento.position.set(-7, 6, -6);
-  scene.add(riempimento);
+  const fillLight = new THREE.DirectionalLight(0x6f8fb5, 0.45);
+  fillLight.position.set(-7, 6, -6);
+  scene.add(fillLight);
 
-  // ---------- cornice ----------
-  const cornice = new THREE.Mesh(
+  // ---------- frame ----------
+  const frame = new THREE.Mesh(
     new THREE.BoxGeometry(11.6, 0.6, 11.6),
-    new THREE.MeshStandardMaterial({ color: COLORI.cornice, roughness: 0.72, metalness: 0.05 }),
+    new THREE.MeshStandardMaterial({ color: COLORS.frame, roughness: 0.72, metalness: 0.05 }),
   );
-  cornice.position.y = -0.31;
-  cornice.receiveShadow = true;
-  scene.add(cornice);
+  frame.position.y = -0.31;
+  frame.receiveShadow = true;
+  scene.add(frame);
 
-  const bordo = new THREE.Mesh(
+  const plinth = new THREE.Mesh(
     new THREE.BoxGeometry(12.2, 0.32, 12.2),
-    new THREE.MeshStandardMaterial({ color: COLORI.corniceBordo, roughness: 0.85 }),
+    new THREE.MeshStandardMaterial({ color: COLORS.frameEdge, roughness: 0.85 }),
   );
-  bordo.position.y = -0.58;
-  scene.add(bordo);
+  plinth.position.y = -0.58;
+  scene.add(plinth);
 
-  // ---------- caselle ----------
-  const geometriaCasella = new THREE.BoxGeometry(1, 0.06, 1);
-  const materialeChiaro = new THREE.MeshStandardMaterial({ color: COLORI.chiaro, roughness: 0.62 });
-  const caselle = new Map(); // numero casella -> mesh (solo le scure, quelle giocabili)
-  const gruppoCaselle = new THREE.Group();
+  // ---------- squares ----------
+  const squareGeometry = new THREE.BoxGeometry(1, 0.06, 1);
+  const lightMaterial = new THREE.MeshStandardMaterial({ color: COLORS.light, roughness: 0.62 });
+  const squares = new Map(); // square number -> mesh (dark squares only, the playable ones)
+  const squareGroup = new THREE.Group();
 
   for (let row = 0; row < 10; row++) {
     for (let col = 0; col < 10; col++) {
-      const giocabile = (row + col) % 2 === 1;
-      const materiale = giocabile
-        ? new THREE.MeshStandardMaterial({ color: COLORI.scuro, roughness: 0.55 })
-        : materialeChiaro;
-      const mesh = new THREE.Mesh(geometriaCasella, materiale);
+      const playable = (row + col) % 2 === 1;
+      const material = playable
+        ? new THREE.MeshStandardMaterial({ color: COLORS.dark, roughness: 0.55 })
+        : lightMaterial;
+      const mesh = new THREE.Mesh(squareGeometry, material);
       mesh.position.set(col - 4.5, -0.03, row - 4.5);
       mesh.receiveShadow = true;
-      if (giocabile) {
+      if (playable) {
         mesh.userData.square = row * 5 + (row % 2 === 0 ? (col - 1) / 2 : col / 2) + 1;
-        caselle.set(mesh.userData.square, mesh);
+        squares.set(mesh.userData.square, mesh);
       }
-      gruppoCaselle.add(mesh);
+      squareGroup.add(mesh);
     }
   }
-  scene.add(gruppoCaselle);
+  scene.add(squareGroup);
 
-  const numeri = new THREE.Mesh(
+  const numbers = new THREE.Mesh(
     new THREE.PlaneGeometry(10, 10).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ map: texturaNumeri(), transparent: true, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ map: numbersTexture(), transparent: true, depthWrite: false }),
   );
-  numeri.position.y = 0.002;
-  numeri.raycast = () => {}; // non deve intercettare i click
-  scene.add(numeri);
+  numbers.position.y = 0.002;
+  numbers.raycast = () => {}; // must not swallow clicks
+  scene.add(numbers);
 
-  // ---------- pezzi ----------
-  const geometriaPedina = new THREE.LatheGeometry(profiloDisco(RAGGIO, ALTEZZA_PEDINA), 48);
-  const geometriaDisco = new THREE.LatheGeometry(profiloDisco(RAGGIO, ALTEZZA_DISCO_DAMA), 48);
-  const geometriaAnello = new THREE.TorusGeometry(RAGGIO - 0.01, 0.028, 10, 44).rotateX(Math.PI / 2);
+  // ---------- pieces ----------
+  const manGeometry = new THREE.LatheGeometry(discProfile(RADIUS, MAN_HEIGHT), 48);
+  const discGeometry = new THREE.LatheGeometry(discProfile(RADIUS, KING_DISC_HEIGHT), 48);
+  const ringGeometry = new THREE.TorusGeometry(RADIUS - 0.01, 0.028, 10, 44).rotateX(Math.PI / 2);
 
-  const materiali = {
-    umano: new THREE.MeshStandardMaterial({ color: COLORI.umano, roughness: 0.38, metalness: 0.06 }),
+  const materials = {
+    human: new THREE.MeshStandardMaterial({ color: COLORS.human, roughness: 0.38, metalness: 0.06 }),
     jev: new THREE.MeshStandardMaterial({
-      color: COLORI.jev, roughness: 0.32, metalness: 0.18,
-      emissive: COLORI.jevLuce, emissiveIntensity: 0.9,
+      color: COLORS.jev, roughness: 0.32, metalness: 0.18,
+      emissive: COLORS.jevGlow, emissiveIntensity: 0.9,
     }),
-    oro: new THREE.MeshStandardMaterial({ color: COLORI.oro, roughness: 0.28, metalness: 0.85 }),
+    gold: new THREE.MeshStandardMaterial({ color: COLORS.gold, roughness: 0.28, metalness: 0.85 }),
   };
 
-  function creaPezzo(codice) {
-    const gruppo = new THREE.Group();
-    const materiale = codice > 0 ? materiali.umano : materiali.jev;
+  function createPiece(code) {
+    const group = new THREE.Group();
+    const material = code > 0 ? materials.human : materials.jev;
 
-    if (isKing(codice)) {
-      for (const y of [0, ALTEZZA_DISCO_DAMA]) {
-        const disco = new THREE.Mesh(geometriaDisco, materiale);
-        disco.position.y = y;
-        disco.castShadow = true;
-        disco.receiveShadow = true;
-        gruppo.add(disco);
+    if (isKing(code)) {
+      for (const y of [0, KING_DISC_HEIGHT]) {
+        const disc = new THREE.Mesh(discGeometry, material);
+        disc.position.y = y;
+        disc.castShadow = true;
+        disc.receiveShadow = true;
+        group.add(disc);
       }
-      const anello = new THREE.Mesh(geometriaAnello, materiali.oro);
-      anello.position.y = ALTEZZA_DISCO_DAMA;
-      anello.castShadow = true;
-      gruppo.add(anello);
+      const ring = new THREE.Mesh(ringGeometry, materials.gold);
+      ring.position.y = KING_DISC_HEIGHT;
+      ring.castShadow = true;
+      group.add(ring);
     } else {
-      const disco = new THREE.Mesh(geometriaPedina, materiale);
-      disco.castShadow = true;
-      disco.receiveShadow = true;
-      gruppo.add(disco);
+      const disc = new THREE.Mesh(manGeometry, material);
+      disc.castShadow = true;
+      disc.receiveShadow = true;
+      group.add(disc);
     }
 
-    gruppo.userData.codice = codice;
-    return gruppo;
+    group.userData.code = code;
+    return group;
   }
 
-  const pezzi = new Map(); // numero casella -> gruppo
-  const gruppoPezzi = new THREE.Group();
-  scene.add(gruppoPezzi);
+  const pieces = new Map(); // square number -> group
+  const pieceGroup = new THREE.Group();
+  scene.add(pieceGroup);
 
-  function metti(square, codice) {
-    const gruppo = creaPezzo(codice);
-    gruppo.position.copy(centroCasella(square));
-    gruppo.userData.square = square;
-    for (const figlio of gruppo.children) figlio.userData.square = square;
-    gruppoPezzi.add(gruppo);
-    pezzi.set(square, gruppo);
-    return gruppo;
+  function place(square, code) {
+    const group = createPiece(code);
+    group.position.copy(squareCentre(square));
+    group.userData.square = square;
+    for (const child of group.children) child.userData.square = square;
+    pieceGroup.add(group);
+    pieces.set(square, group);
+    return group;
   }
 
-  function svuota() {
-    for (const gruppo of pezzi.values()) gruppoPezzi.remove(gruppo);
-    pezzi.clear();
+  function clearPieces() {
+    for (const group of pieces.values()) pieceGroup.remove(group);
+    pieces.clear();
   }
 
   function syncBoard(state) {
-    svuota();
+    clearPieces();
     for (let square = 1; square <= 50; square++) {
-      if (state.board[square] !== EMPTY) metti(square, state.board[square]);
+      if (state.board[square] !== EMPTY) place(square, state.board[square]);
     }
   }
 
-  // ---------- evidenziazioni ----------
-  const anelliBersaglio = new THREE.Group();
-  scene.add(anelliBersaglio);
-  const geometriaBersaglio = new THREE.RingGeometry(0.27, 0.35, 40).rotateX(-Math.PI / 2);
-  const materialeBersaglio = new THREE.MeshBasicMaterial({
-    color: COLORI.bersaglio, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+  // ---------- highlights ----------
+  const targetRings = new THREE.Group();
+  scene.add(targetRings);
+  const targetGeometry = new THREE.RingGeometry(0.27, 0.35, 40).rotateX(-Math.PI / 2);
+  const targetMaterial = new THREE.MeshBasicMaterial({
+    color: COLORS.target, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
   });
 
-  let evidenziate = { selected: null, targets: [], trail: [], hint: [] };
+  let highlighted = { selected: null, targets: [], trail: [], hint: [] };
 
   function setHighlights(next = {}) {
-    evidenziate = { selected: null, targets: [], trail: [], hint: [], ...next };
+    highlighted = { selected: null, targets: [], trail: [], hint: [], ...next };
 
-    for (const [square, mesh] of caselle) {
+    for (const [square, mesh] of squares) {
       const emissive = mesh.material.emissive;
-      if (square === evidenziate.selected) emissive.setHex(COLORI.selezione).multiplyScalar(0.55);
-      else if (evidenziate.hint.includes(square)) emissive.setHex(COLORI.selezione).multiplyScalar(0.4);
-      else if (evidenziate.targets.includes(square)) emissive.setHex(COLORI.bersaglio).multiplyScalar(0.3);
-      else if (evidenziate.trail.includes(square)) emissive.setHex(COLORI.scia).multiplyScalar(0.35);
+      if (square === highlighted.selected) emissive.setHex(COLORS.selection).multiplyScalar(0.55);
+      else if (highlighted.hint.includes(square)) emissive.setHex(COLORS.selection).multiplyScalar(0.4);
+      else if (highlighted.targets.includes(square)) emissive.setHex(COLORS.target).multiplyScalar(0.3);
+      else if (highlighted.trail.includes(square)) emissive.setHex(COLORS.trail).multiplyScalar(0.35);
       else emissive.setHex(0x000000);
     }
 
-    anelliBersaglio.clear();
-    for (const square of evidenziate.targets) {
-      const anello = new THREE.Mesh(geometriaBersaglio, materialeBersaglio);
-      anello.position.copy(centroCasella(square)).setY(0.012);
-      anelliBersaglio.add(anello);
+    targetRings.clear();
+    for (const square of highlighted.targets) {
+      const ring = new THREE.Mesh(targetGeometry, targetMaterial);
+      ring.position.copy(squareCentre(square)).setY(0.012);
+      targetRings.add(ring);
     }
   }
   setHighlights();
 
-  // ---------- animazioni ----------
-  function tween(durata, passo) {
+  // ---------- animation ----------
+  function tween(duration, step) {
     return new Promise((resolve) => {
-      const inizio = performance.now();
-      const frame = (ora) => {
-        const t = Math.min(1, (ora - inizio) / durata);
-        passo(t);
+      const start = performance.now();
+      const frame = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        step(t);
         if (t < 1) requestAnimationFrame(frame);
         else resolve();
       };
@@ -280,123 +280,123 @@ export function createScene(container, { onPick } = {}) {
     });
   }
 
-  async function togliPezzo(square) {
-    const gruppo = pezzi.get(square);
-    if (!gruppo) return;
-    pezzi.delete(square);
+  async function removePiece(square) {
+    const group = pieces.get(square);
+    if (!group) return;
+    pieces.delete(square);
     await tween(230, (t) => {
-      const e = facile(t);
-      gruppo.position.y = -0.45 * e;
-      gruppo.scale.setScalar(Math.max(0.001, 1 - e));
+      const e = easeInOut(t);
+      group.position.y = -0.45 * e;
+      group.scale.setScalar(Math.max(0.001, 1 - e));
     });
-    gruppoPezzi.remove(gruppo);
+    pieceGroup.remove(group);
   }
 
   /**
-   * Anima la mossa gia decisa. Ogni salto della catena viene percorso a uno a
-   * uno, e il pezzo mangiato sparisce subito dopo il salto che lo scavalca:
-   * cosi si vede quale pezzo e caduto per quale salto.
+   * Animates a move that has already been decided. Each hop of the chain is
+   * travelled one at a time, and the captured piece disappears right after the
+   * hop that jumped it, so you can see which piece fell to which jump.
    */
   async function playMove(move) {
-    const gruppo = pezzi.get(move.from);
-    if (!gruppo) return;
-    pezzi.delete(move.from);
+    const group = pieces.get(move.from);
+    if (!group) return;
+    pieces.delete(move.from);
 
     for (let i = 1; i < move.path.length; i++) {
-      const partenza = centroCasella(move.path[i - 1]);
-      const arrivo = centroCasella(move.path[i]);
-      const distanza = partenza.distanceTo(arrivo);
-      const salto = Math.min(1.1, 0.22 + distanza * 0.1);
+      const start = squareCentre(move.path[i - 1]);
+      const end = squareCentre(move.path[i]);
+      const distance = start.distanceTo(end);
+      const arc = Math.min(1.1, 0.22 + distance * 0.1);
 
-      await tween(250 + distanza * 22, (t) => {
-        const e = facile(t);
-        gruppo.position.lerpVectors(partenza, arrivo, e);
-        gruppo.position.y = Math.sin(Math.PI * e) * salto;
+      await tween(250 + distance * 22, (t) => {
+        const e = easeInOut(t);
+        group.position.lerpVectors(start, end, e);
+        group.position.y = Math.sin(Math.PI * e) * arc;
       });
-      gruppo.position.copy(arrivo);
+      group.position.copy(end);
 
-      const preda = move.captured[i - 1];
-      if (preda !== undefined) await togliPezzo(preda);
+      const victim = move.captured[i - 1];
+      if (victim !== undefined) await removePiece(victim);
     }
 
     if (move.promotes) {
-      gruppoPezzi.remove(gruppo);
-      const dama = metti(move.to, move.piece > 0 ? 2 : -2);
+      pieceGroup.remove(group);
+      const king = place(move.to, move.piece > 0 ? 2 : -2);
       await tween(320, (t) => {
-        const e = facile(t);
-        dama.position.y = Math.sin(Math.PI * e) * 0.5;
-        dama.scale.setScalar(1 + Math.sin(Math.PI * e) * 0.16);
+        const e = easeInOut(t);
+        king.position.y = Math.sin(Math.PI * e) * 0.5;
+        king.scale.setScalar(1 + Math.sin(Math.PI * e) * 0.16);
       });
-      dama.position.y = 0;
-      dama.scale.setScalar(1);
+      king.position.y = 0;
+      king.scale.setScalar(1);
       return;
     }
 
-    gruppo.userData.square = move.to;
-    for (const figlio of gruppo.children) figlio.userData.square = move.to;
-    pezzi.set(move.to, gruppo);
+    group.userData.square = move.to;
+    for (const child of group.children) child.userData.square = move.to;
+    pieces.set(move.to, group);
   }
 
-  // ---------- click ----------
+  // ---------- picking ----------
   const raycaster = new THREE.Raycaster();
-  const puntatore = new THREE.Vector2();
-  let giu = null;
+  const pointer = new THREE.Vector2();
+  let pressed = null;
 
   renderer.domElement.addEventListener('pointerdown', (event) => {
-    giu = { x: event.clientX, y: event.clientY, t: performance.now() };
+    pressed = { x: event.clientX, y: event.clientY, t: performance.now() };
   });
 
   renderer.domElement.addEventListener('pointerup', (event) => {
-    if (!giu || !onPick) return;
-    // Se il puntatore si e mosso, l'utente stava ruotando la camera, non cliccando.
-    const spostamento = Math.hypot(event.clientX - giu.x, event.clientY - giu.y);
-    const durata = performance.now() - giu.t;
-    giu = null;
-    if (spostamento > 6 || durata > 700) return;
+    if (!pressed || !onPick) return;
+    // If the pointer travelled, the user was orbiting the camera, not clicking.
+    const travelled = Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y);
+    const held = performance.now() - pressed.t;
+    pressed = null;
+    if (travelled > 6 || held > 700) return;
 
     const rect = renderer.domElement.getBoundingClientRect();
-    puntatore.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    puntatore.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(puntatore, camera);
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
 
-    const colpiti = raycaster.intersectObjects([gruppoPezzi, gruppoCaselle], true);
-    const bersaglio = colpiti.find((hit) => hit.object.userData.square !== undefined);
-    if (bersaglio) onPick(bersaglio.object.userData.square);
+    const hits = raycaster.intersectObjects([pieceGroup, squareGroup], true);
+    const hit = hits.find((candidate) => candidate.object.userData.square !== undefined);
+    if (hit) onPick(hit.object.userData.square);
   });
 
-  // ---------- ciclo ----------
-  // Finche l'utente non tocca la camera, la scacchiera si tiene da sola dentro
-  // l'inquadratura: in un pannello stretto serve piu distanza che in uno largo.
-  let cameraTocccataDallUtente = false;
-  controls.addEventListener('start', () => { cameraTocccataDallUtente = true; });
+  // ---------- loop ----------
+  // Until the user touches the camera, the board keeps itself inside the frame:
+  // a narrow panel needs more distance than a wide one.
+  let cameraTouchedByUser = false;
+  controls.addEventListener('start', () => { cameraTouchedByUser = true; });
 
-  function distanzaPerInquadrare() {
+  function framingDistance() {
     const vFov = THREE.MathUtils.degToRad(camera.fov);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
-    return Math.max(RAGGIO_INQUADRATURA / Math.sin(vFov / 2), RAGGIO_INQUADRATURA / Math.sin(hFov / 2));
+    return Math.max(FRAMING_RADIUS / Math.sin(vFov / 2), FRAMING_RADIUS / Math.sin(hFov / 2));
   }
 
-  function ridimensiona() {
+  function resize() {
     const { clientWidth: w, clientHeight: h } = container;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
 
-    if (!cameraTocccataDallUtente) {
-      const distanza = THREE.MathUtils.clamp(distanzaPerInquadrare(), controls.minDistance, controls.maxDistance);
-      camera.position.copy(DIREZIONE_CAMERA).multiplyScalar(distanza);
+    if (!cameraTouchedByUser) {
+      const distance = THREE.MathUtils.clamp(framingDistance(), controls.minDistance, controls.maxDistance);
+      camera.position.copy(CAMERA_DIRECTION).multiplyScalar(distance);
       controls.update();
     }
   }
-  const osservatore = new ResizeObserver(ridimensiona);
-  osservatore.observe(container);
-  ridimensiona();
+  const observer = new ResizeObserver(resize);
+  observer.observe(container);
+  resize();
 
-  let vivo = true;
-  (function disegna() {
-    if (!vivo) return;
-    requestAnimationFrame(disegna);
+  let running = true;
+  (function draw() {
+    if (!running) return;
+    requestAnimationFrame(draw);
     controls.update();
     renderer.render(scene, camera);
   })();
@@ -406,8 +406,8 @@ export function createScene(container, { onPick } = {}) {
     playMove,
     setHighlights,
     dispose() {
-      vivo = false;
-      osservatore.disconnect();
+      running = false;
+      observer.disconnect();
       controls.dispose();
       renderer.dispose();
       container.removeChild(renderer.domElement);
