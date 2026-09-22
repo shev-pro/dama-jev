@@ -3,18 +3,27 @@ services:
     build: .
     image: dama-jev
     container_name: dama-jev
-    # Bound to loopback on purpose: the server forwards the player's API key,
-    # and there is no reason for it to be reachable from the local network.
+    # Bound to loopback on purpose. The server holds an API key - either each
+    # player's, for the length of their game, or the one configured below - and
+    # there is no reason for it to be reachable from the local network.
     # Exposing it for real also means adding that host name to ALLOWED_HOSTS.
     ports:
       - "127.0.0.1:5173:5173"
     restart: unless-stopped
 
-    # Behind a TLS-inspecting corporate proxy (Zscaler, Cato, Netskope and so on)
-    # the container does not trust the CA it is shown in place of TypeSafe's, and
-    # every call fails with SELF_SIGNED_CERT_IN_CHAIN. The fix is to give it the
-    # corporate CA, not to switch verification off. See the README.
-    # volumes:
-    #   - ./certs:/certs:ro
+    environment:
+      # Set this and the page stops asking anyone for a key, and stops accepting
+      # one. Leave it unset and each player brings their own.
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+
+    volumes:
+      # The leaderboard, so it survives a rebuild.
+      - ./data:/app/data
+
+      # Behind a TLS-inspecting corporate proxy (Zscaler, Cato, Netskope and so on)
+      # the container does not trust the CA it is shown in place of TypeSafe's, and
+      # every call fails with SELF_SIGNED_CERT_IN_CHAIN. The fix is to give it the
+      # corporate CA, not to switch verification off. See the README.
+      # - ./certs:/certs:ro
     # environment:
     #   NODE_EXTRA_CA_CERTS: /certs/corporate-ca.pem

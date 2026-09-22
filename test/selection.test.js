@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { initialPosition, positionFrom, legalMoves } from '../src/rules.js';
+import { initialPosition, positionFrom, legalMoves } from '../server/rules.js';
 import { createSelection, selectionTargets, selectionHead, advanceSelection } from '../src/selection.js';
 
 test('selecting an empty or blocked square opens nothing', () => {

@@ -1,8 +1,11 @@
 .git
 .gitignore
 .claude
+.github
 node_modules
 test
+data
+certs
 *.md
 Dockerfile
 .dockerignore
