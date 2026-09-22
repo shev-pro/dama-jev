@@ -1,9 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { initialPosition, positionFrom, legalMoves } from '../src/rules.js';
-import { moveNotation, renderBoard, piecesOf, isEdgeSquare, rowsToPromotion } from '../src/notation.js';
-import { annotateMoves, heuristicBest, scoreMoves } from '../src/analysis.js';
+import { initialPosition, positionFrom, legalMoves } from '../server/rules.js';
+import { moveNotation, renderBoard, piecesOf, isEdgeSquare, rowsToPromotion } from '../server/notation.js';
+import { annotateMoves, heuristicBest, scoreMoves } from '../server/analysis.js';
+import { geometryOf, variantOf } from '../server/rules.js';
+
+const GEO_10 = geometryOf(variantOf('international'));
+const GEO_8 = geometryOf(variantOf('english'));
 
 const byNotation = (annotated, notation) => annotated.find((entry) => entry.notation === notation);
 
@@ -25,14 +29,20 @@ test('two landing squares for the same king stay distinct moves', () => {
   assert.deepEqual(notations.sort(), ['46x14x5', '46x19x5']);
 });
 
-test('edge squares and distance to promotion', () => {
-  assert.equal(isEdgeSquare(46), true);  // file 0
-  assert.equal(isEdgeSquare(5), true);   // file 9
-  assert.equal(isEdgeSquare(33), false);
+test('edge squares and distance to promotion depend on the board size', () => {
+  assert.equal(isEdgeSquare(46, GEO_10), true);  // file 0
+  assert.equal(isEdgeSquare(5, GEO_10), true);   // file 9
+  assert.equal(isEdgeSquare(33, GEO_10), false);
 
-  assert.equal(rowsToPromotion(46, 'white'), 9);
-  assert.equal(rowsToPromotion(6, 'white'), 1);
-  assert.equal(rowsToPromotion(45, 'black'), 1);
+  assert.equal(rowsToPromotion(46, 'white', GEO_10), 9);
+  assert.equal(rowsToPromotion(6, 'white', GEO_10), 1);
+  assert.equal(rowsToPromotion(45, 'black', GEO_10), 1);
+
+  // The same helpers on an 8x8 board: square 29 is on file 0, square 4 on file 7.
+  assert.equal(isEdgeSquare(29, GEO_8), true);
+  assert.equal(isEdgeSquare(4, GEO_8), true);
+  assert.equal(rowsToPromotion(29, 'white', GEO_8), 7);
+  assert.equal(rowsToPromotion(4, 'black', GEO_8), 7);
 });
 
 test('the text board is rendered from Jev\'s point of view', () => {

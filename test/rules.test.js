@@ -4,27 +4,34 @@ import assert from 'node:assert/strict';
 import {
   EMPTY, WHITE_MAN, WHITE_KING, BLACK_MAN, BLACK_KING,
   initialPosition, positionFrom, legalMoves, applyMove, gameStatus,
-  squareToRC, rcToSquare,
-} from '../src/rules.js';
+  geometryOf, variantOf,
+} from '../server/rules.js';
 
 const asPaths = (moves) => moves.map((m) => m.path.join('-')).sort();
 const findMove = (moves, path) => moves.find((m) => m.path.join('-') === path);
 
-test('the 1-50 numbering covers only dark squares and round-trips', () => {
-  assert.deepEqual(squareToRC(1), [0, 1]);
-  assert.deepEqual(squareToRC(5), [0, 9]);
-  assert.deepEqual(squareToRC(6), [1, 0]);
-  assert.deepEqual(squareToRC(50), [9, 8]);
+test('the square numbering covers only playable squares and round-trips', () => {
+  const international = geometryOf(variantOf('international'));
+  assert.deepEqual(international.squareToRC(1), [0, 1]);
+  assert.deepEqual(international.squareToRC(5), [0, 9]);
+  assert.deepEqual(international.squareToRC(6), [1, 0]);
+  assert.deepEqual(international.squareToRC(50), [9, 8]);
 
-  for (let sq = 1; sq <= 50; sq++) {
-    const [r, c] = squareToRC(sq);
-    assert.equal((r + c) % 2, 1, `square ${sq} must sit on a dark square`);
-    assert.equal(rcToSquare(r, c), sq);
+  // Every variant, whichever diagonal it plays on, must number its own squares
+  // consistently in both directions.
+  for (const id of ['international', 'english', 'italian']) {
+    const geometry = geometryOf(variantOf(id));
+    for (let square = 1; square <= geometry.total; square++) {
+      const [row, col] = geometry.squareToRC(square);
+      assert.equal((row + col) % 2, geometry.parity, `${id}: square ${square} is off its diagonal`);
+      assert.equal(geometry.rcToSquare(row, col), square, `${id}: square ${square} does not round-trip`);
+    }
+    // A square on the other colour is not playable, and neither is anything off
+    // the board.
+    assert.equal(geometry.rcToSquare(0, geometry.parity === 1 ? 0 : 1), 0);
+    assert.equal(geometry.rcToSquare(-1, 2), 0);
+    assert.equal(geometry.rcToSquare(geometry.size, 3), 0);
   }
-
-  assert.equal(rcToSquare(0, 0), 0, 'light squares are not playable');
-  assert.equal(rcToSquare(-1, 2), 0);
-  assert.equal(rcToSquare(10, 3), 0);
 });
 
 test('the opening position has 20 pieces a side and White to move', () => {

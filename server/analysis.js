@@ -7,18 +7,19 @@
  * error grows with the size of the thing being counted, so the model is never
  * asked for a number. It is handed the number, and asked for the judgement.
  *
- * The same search serves two purposes: annotating candidates for Jev, and
- * acting as the local fallback engine when the API does not answer.
+ * It lives on the server for a second reason: on the client it would be a
+ * ready-made engine telling the player the best move.
  *
  * Note: the descriptions produced here are Italian on purpose. They are prompt
  * content, sent verbatim as the Choice option descriptions.
  */
 
-import { EMPTY, isKing, isMan, legalMoves, applyMove, squareToRC, rcToSquare } from './rules.js';
+import { EMPTY, isKing, isMan, colorOf } from '../src/board.js';
+import { legalMoves, applyMove } from './rules.js';
 import { moveNotation, squareRow, isEdgeSquare, rowsToPromotion, zoneOf } from './notation.js';
+import { variantOf, geometryOf } from './variants.js';
 
 const MAN_VALUE = 1;
-const KING_VALUE = 3;
 const MATE = 1000;
 
 /** Depth and node ceiling: they keep Jev's turn under a few milliseconds. */
@@ -26,17 +27,26 @@ const SEARCH_DEPTH = 4;
 const QUIESCENCE_PLIES = 6;
 const NODE_BUDGET = 300_000;
 
+const MATE_THRESHOLD = MATE - 100;
+/** Below this, the difference is only the positional nudge, not real material. */
+const MATERIAL_NOISE = 0.25;
+
+export const isWinningScore = (score) => score >= MATE_THRESHOLD;
+export const isLosingScore = (score) => score <= -MATE_THRESHOLD;
+
 const other = (color) => (color === 'white' ? 'black' : 'white');
 
 function material(state, color) {
-  let total = 0;
-  for (let square = 1; square <= 50; square++) {
+  const variant = variantOf(state.variant);
+  const { total } = geometryOf(variant);
+  let sum = 0;
+  for (let square = 1; square <= total; square++) {
     const piece = state.board[square];
     if (piece === EMPTY) continue;
-    if ((piece > 0 ? 'white' : 'black') !== color) continue;
-    total += isKing(piece) ? KING_VALUE : MAN_VALUE;
+    if (colorOf(piece) !== color) continue;
+    sum += isKing(piece) ? variant.kingValue : MAN_VALUE;
   }
-  return total;
+  return sum;
 }
 
 /**
@@ -44,13 +54,14 @@ function material(state, color) {
  * towards promotion that breaks ties without distorting the count.
  */
 function evaluate(state, color) {
+  const geometry = geometryOf(variantOf(state.variant));
   let score = material(state, color) - material(state, other(color));
 
-  for (let square = 1; square <= 50; square++) {
+  for (let square = 1; square <= geometry.total; square++) {
     const piece = state.board[square];
     if (piece === EMPTY || isKing(piece)) continue;
-    const owner = piece > 0 ? 'white' : 'black';
-    const advance = (9 - rowsToPromotion(square, owner)) * 0.02;
+    const owner = colorOf(piece);
+    const advance = (geometry.size - 1 - rowsToPromotion(square, owner, geometry)) * 0.02;
     score += owner === color ? advance : -advance;
   }
   return score;
@@ -65,8 +76,8 @@ function negamax(state, depth, alpha, beta, quiescence, budget, ply) {
   // treats every winning line as equal and picks one at random, however long.
   if (moves.length === 0) return -(MATE - ply);
 
-  // Captures are compulsory: either every move captures or none does. Stopping
-  // in the middle of a forced exchange misreads the position, so we carry on.
+  // Stopping in the middle of a forced exchange misreads the position, so when
+  // every available move is a capture we carry on past the depth limit.
   const forcedCapture = moves[0].captured.length > 0;
   if (depth <= 0 && (!forcedCapture || quiescence <= 0)) return evaluate(state, state.turn);
 
@@ -92,26 +103,20 @@ export function scoreMoves(state, depth = SEARCH_DEPTH) {
   }));
 }
 
-const MATE_THRESHOLD = MATE - 100;
-/** Below this, the difference is only the positional nudge, not real material. */
-const MATERIAL_NOISE = 0.25;
-
-export const isWinningScore = (score) => score >= MATE_THRESHOLD;
-export const isLosingScore = (score) => score <= -MATE_THRESHOLD;
-
 /**
  * How many enemy pieces touch the landing square. In the opening this is what
  * actually separates one move from another, when material is still level
  * everywhere: making contact opens the game, hanging back keeps it closed.
  */
 function contacts(state, square, mover) {
-  const [row, col] = squareToRC(square);
+  const geometry = geometryOf(variantOf(state.variant));
+  const [row, col] = geometry.squareToRC(square);
   let neighbours = 0;
   for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
-    const adjacent = rcToSquare(row + dr, col + dc);
+    const adjacent = geometry.rcToSquare(row + dr, col + dc);
     if (!adjacent) continue;
     const piece = state.board[adjacent];
-    if (piece !== EMPTY && (piece > 0 ? 'white' : 'black') !== mover) neighbours++;
+    if (piece !== EMPTY && colorOf(piece) !== mover) neighbours++;
   }
   return neighbours;
 }
@@ -129,13 +134,13 @@ function balanceLabel(delta) {
  * Option descriptions exist to separate the options: if they all read alike,
  * the model has nothing left to tell them apart by.
  */
-function placement(square, mover, piece, promotes) {
+function placement(square, mover, piece, promotes, geometry) {
   if (promotes) return 'arriva in fondo e promuove a dama';
 
-  const parts = [`finisce sulla traversa ${squareRow(square)} ${zoneOf(square)}`];
-  if (isEdgeSquare(square)) parts.push('appoggiata alla sponda, dove non puo essere scavalcata di lato');
+  const parts = [`finisce sulla traversa ${squareRow(square, geometry)} ${zoneOf(square, geometry)}`];
+  if (isEdgeSquare(square, geometry)) parts.push('appoggiata alla sponda, dove non puo essere scavalcata di lato');
   if (isMan(piece)) {
-    const left = rowsToPromotion(square, mover);
+    const left = rowsToPromotion(square, mover, geometry);
     parts.push(left === 0 ? 'e in fondo' : `le mancano ${left} ${left === 1 ? 'traversa' : 'traverse'} alla promozione`);
   }
   return parts.join(', ');
@@ -148,6 +153,8 @@ function placement(square, mover, piece, promotes) {
  * distinct fields compare better than a paragraph.
  */
 export function annotateMoves(state, options = {}) {
+  const variant = variantOf(state.variant);
+  const geometry = geometryOf(variant);
   const depth = options.depth ?? SEARCH_DEPTH;
   const mover = state.turn;
   const before = material(state, mover) - material(state, other(mover));
@@ -167,8 +174,8 @@ export function annotateMoves(state, options = {}) {
       captures: move.captured.length,
       kingsCaptured: kingsTaken,
       promotes: move.promotes,
-      onEdge: isEdgeSquare(move.to),
-      rank: squareRow(move.to),
+      onEdge: isEdgeSquare(move.to, geometry),
+      rank: squareRow(move.to, geometry),
       opponentReply: replyCaptures,
       contacts: contacts(after, move.to, mover),
       opponentHasNoMove: replies.length === 0,
@@ -190,7 +197,7 @@ export function annotateMoves(state, options = {}) {
         : `mangia ${move.captured.length} ${move.captured.length === 1 ? 'pezzo' : 'pezzi'} ` +
           `(caselle ${move.captured.join(', ')})` +
           (kingsTaken > 0 ? `, di cui ${kingsTaken} ${kingsTaken === 1 ? 'dama' : 'dame'}` : ''),
-      arrivo: placement(move.to, mover, move.piece, move.promotes),
+      arrivo: placement(move.to, mover, move.piece, move.promotes, geometry),
       contatto: facts.contacts === 0
         ? 'la casella di arrivo non tocca nessun pezzo avversario'
         : `la casella di arrivo tocca ${facts.contacts} ${facts.contacts === 1 ? 'pezzo avversario' : 'pezzi avversari'}`,
@@ -206,7 +213,7 @@ export function annotateMoves(state, options = {}) {
           ? 'questa mossa porta a una sconfitta forzata'
           : levelMaterial
             ? 'il materiale resta invariato dopo gli scambi forzati'
-            : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} contando la dama 3 e la pedina 1: ` +
+            : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} contando la dama ${variant.kingValue} e la pedina 1: ` +
               balanceLabel(delta),
     };
 
