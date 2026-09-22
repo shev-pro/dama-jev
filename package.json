@@ -1,0 +1,12 @@
+{
+  "name": "dama-typesafe",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dama internazionale 10x10 in 3D contro Jev, il System One model di TypeSafe",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}

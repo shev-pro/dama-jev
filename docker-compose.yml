@@ -1,0 +1,20 @@
+services:
+  dama:
+    build: .
+    image: dama-jev
+    container_name: dama-jev
+    # Legato a loopback di proposito: il server inoltra la chiave API di chi
+    # gioca, e non ha senso che sia raggiungibile dalla rete locale. Per
+    # esporlo davvero serve anche aggiungere il nome host ad ALLOWED_HOSTS.
+    ports:
+      - "127.0.0.1:5173:5173"
+    restart: unless-stopped
+
+    # Dietro un proxy aziendale che ispeziona il TLS (Zscaler, Cato, Netskope...)
+    # il container non si fida della CA che vede al posto di quella di TypeSafe,
+    # e ogni chiamata fallisce con SELF_SIGNED_CERT_IN_CHAIN. Il rimedio e dargli
+    # la CA aziendale, non disattivare la verifica. Vedi il README.
+    # volumes:
+    #   - ./certs:/certs:ro
+    # environment:
+    #   NODE_EXTRA_CA_CERTS: /certs/corporate-ca.pem

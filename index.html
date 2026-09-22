@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dama × Jev</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+  :root {
+    --sfondo: #0a0c10;
+    --pannello: #11151c;
+    --pannello-alto: #171d26;
+    --bordo: #232c39;
+    --testo: #dfe5ee;
+    --testo-tenue: #8a97a8;
+    --jev: #3fd0c9;
+    --umano: #e8a33d;
+    --allarme: #e8685d;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--sfondo); color: var(--testo);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #app { display: flex; height: 100%; overflow: hidden; }
+
+  /* ---------- scacchiera ---------- */
+  #scena { position: relative; flex: 1; min-width: 0; }
+  #scena canvas { display: block; width: 100%; height: 100%; }
+  #scena::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 42%, transparent 42%, rgba(0,0,0,.62) 100%);
+  }
+
+  #avviso {
+    position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+    background: rgba(10,12,16,.92); border: 1px solid var(--bordo); border-radius: 999px;
+    padding: 8px 18px; font-size: 13px; color: var(--testo-tenue);
+    opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap;
+  }
+  #avviso.visibile { opacity: 1; }
+
+  /* ---------- pannello ---------- */
+  #pannello {
+    width: 400px; flex: 0 0 400px; background: var(--pannello);
+    border-left: 1px solid var(--bordo); display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  #intestazione { padding: 20px 22px 16px; border-bottom: 1px solid var(--bordo); }
+  #intestazione h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+  #intestazione h1 span { color: var(--jev); }
+  #intestazione p { margin: 5px 0 0; font-size: 12.5px; color: var(--testo-tenue); }
+
+  #corpo { flex: 1; overflow-y: auto; padding: 18px 22px 28px; }
+  #corpo::-webkit-scrollbar { width: 9px; }
+  #corpo::-webkit-scrollbar-thumb { background: #262f3d; border-radius: 9px; }
+
+  .sezione { margin-bottom: 22px; }
+  .sezione > h2 {
+    margin: 0 0 10px; font-size: 10.5px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--testo-tenue);
+  }
+
+  /* ---------- stato del turno ---------- */
+  #stato {
+    display: flex; align-items: center; gap: 11px;
+    background: var(--pannello-alto); border: 1px solid var(--bordo); border-radius: 10px;
+    padding: 13px 15px; font-size: 14px;
+  }
+  #pallino { width: 9px; height: 9px; border-radius: 50%; background: var(--umano); flex: 0 0 auto; }
+  #stato.pensa #pallino { background: var(--jev); animation: pulsa 1.05s ease-in-out infinite; }
+  #stato.finita #pallino { background: var(--testo-tenue); }
+  @keyframes pulsa { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.78); } }
+
+  /* ---------- materiale ---------- */
+  #materiale { display: flex; gap: 10px; }
+  .conta {
+    flex: 1; background: var(--pannello-alto); border: 1px solid var(--bordo);
+    border-radius: 10px; padding: 11px 13px;
+  }
+  .conta .etichetta { font-size: 11px; color: var(--testo-tenue); }
+  .conta .valore { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .conta.tu .valore { color: var(--umano); }
+  .conta.jev .valore { color: var(--jev); }
+  .conta .dettaglio { font-size: 11px; color: var(--testo-tenue); margin-top: 1px; }
+
+  /* ---------- candidate ---------- */
+  .candidata {
+    position: relative; border: 1px solid transparent; border-radius: 9px;
+    padding: 8px 10px; margin-bottom: 4px; cursor: default; overflow: hidden;
+    transition: border-color .15s, background .15s;
+  }
+  .candidata:hover { border-color: var(--bordo); background: var(--pannello-alto); }
+  .candidata .barra {
+    position: absolute; inset: 0 auto 0 0; background: rgba(63,208,201,.13);
+    border-radius: 9px; transition: width .4s ease;
+  }
+  .candidata.scelta .barra { background: rgba(63,208,201,.28); }
+  .candidata.scelta { border-color: rgba(63,208,201,.5); }
+  .candidata > * { position: relative; }
+  .riga-testa { display: flex; align-items: baseline; gap: 9px; }
+  .candidata .notazione { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .candidata.scelta .notazione { color: var(--jev); }
+  .candidata .percento { margin-left: auto; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--testo-tenue); }
+  .candidata.scelta .percento { color: var(--jev); }
+  .candidata .sintesi { font-size: 12px; color: var(--testo-tenue); margin-top: 2px; }
+
+  /* ---------- valutazione ---------- */
+  .valutazione { background: var(--pannello-alto); border: 1px solid var(--bordo); border-radius: 10px; padding: 12px 14px; }
+  .valutazione .avviso-lettura { font-size: 11px; color: var(--testo-tenue); margin: 0 0 9px; line-height: 1.45; }
+  .coppia { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 3px 0; }
+  .coppia .k { color: var(--testo-tenue); }
+  .coppia .v { text-align: right; }
+
+  .metro { height: 4px; border-radius: 4px; background: #212a36; margin-top: 7px; overflow: hidden; }
+  .metro > div { height: 100%; background: var(--jev); border-radius: 4px; transition: width .4s ease; }
+  .metro.rischio > div { background: linear-gradient(90deg, var(--jev), var(--allarme)); }
+
+  /* ---------- cronologia ---------- */
+  #cronologia { font-family: var(--mono); font-size: 12px; max-height: 190px; overflow-y: auto; }
+  #cronologia div { display: flex; gap: 10px; padding: 2px 0; color: var(--testo-tenue); }
+  #cronologia .n { width: 26px; text-align: right; color: #4a5768; }
+  #cronologia .bianco { color: var(--umano); }
+  #cronologia .nero { color: var(--jev); }
+
+  /* ---------- errore ---------- */
+  #errore {
+    background: rgba(232,104,93,.09); border: 1px solid rgba(232,104,93,.35);
+    border-radius: 10px; padding: 13px 15px;
+  }
+  #errore h3 { margin: 0 0 5px; font-size: 13px; color: var(--allarme); }
+  #errore p { margin: 0 0 11px; font-size: 12.5px; color: var(--testo); line-height: 1.5; }
+  #errore .azioni { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  button {
+    font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 7px;
+    border: 1px solid var(--bordo); background: var(--pannello-alto); color: var(--testo);
+    cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  button:hover { border-color: #3a4657; background: #1d2431; }
+  button.primario { background: var(--jev); border-color: var(--jev); color: #06231f; font-weight: 600; }
+  button.primario:hover { background: #56ded7; border-color: #56ded7; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  .nascosto { display: none !important; }
+
+  /* ---------- dialog della chiave ---------- */
+  dialog {
+    border: 1px solid var(--bordo); border-radius: 14px; background: var(--pannello);
+    color: var(--testo); padding: 0; max-width: 440px; width: calc(100% - 40px);
+  }
+  dialog::backdrop { background: rgba(5,7,10,.82); backdrop-filter: blur(3px); }
+  dialog .contenuto { padding: 26px 28px 24px; }
+  dialog h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+  dialog h2 span { color: var(--jev); }
+  dialog p { margin: 0 0 16px; font-size: 13px; color: var(--testo-tenue); line-height: 1.55; }
+  dialog input {
+    width: 100%; font: inherit; font-family: var(--mono); font-size: 13px; padding: 10px 12px;
+    border-radius: 8px; border: 1px solid var(--bordo); background: #0c1016; color: var(--testo);
+  }
+  dialog input:focus { outline: none; border-color: var(--jev); }
+  dialog .nota {
+    margin: 12px 0 0; font-size: 11.5px; color: var(--testo-tenue);
+    border-left: 2px solid var(--bordo); padding-left: 11px; line-height: 1.5;
+  }
+  dialog .pulsanti { margin-top: 18px; display: flex; justify-content: flex-end; }
+  dialog .errore-chiave { color: var(--allarme); font-size: 12.5px; margin: 10px 0 0; }
+
+  @media (max-width: 900px) {
+    #app { flex-direction: column; }
+    #scena { height: 52vh; flex: none; }
+    #pannello { width: 100%; flex: 1; border-left: none; border-top: 1px solid var(--bordo); }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="scena">
+    <div id="avviso"></div>
+  </div>
+
+  <aside id="pannello">
+    <header id="intestazione">
+      <h1>Dama × <span>Jev</span></h1>
+      <p>Dama internazionale 10x10. Tu il bianco, Jev il nero.</p>
+    </header>
+
+    <div id="corpo">
+      <section class="sezione">
+        <div id="stato"><span id="pallino"></span><span id="stato-testo">Tocca a te.</span></div>
+      </section>
+
+      <section class="sezione">
+        <div id="materiale">
+          <div class="conta tu">
+            <div class="etichetta">Tu</div>
+            <div class="valore" id="conta-umano">20</div>
+            <div class="dettaglio" id="dettaglio-umano">20 pedine</div>
+          </div>
+          <div class="conta jev">
+            <div class="etichetta">Jev</div>
+            <div class="valore" id="conta-jev">20</div>
+            <div class="dettaglio" id="dettaglio-jev">20 pedine</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sezione nascosto" id="sezione-errore">
+        <h2>Problema</h2>
+        <div id="errore">
+          <h3 id="errore-titolo"></h3>
+          <p id="errore-testo"></p>
+          <div class="azioni">
+            <button id="riprova" class="primario">Riprova</button>
+            <button id="motore-locale">Fai muovere il motore locale</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="sezione nascosto" id="sezione-candidate">
+        <h2>Dentro la testa di Jev</h2>
+        <div id="nota-scelta" class="nascosto"></div>
+        <div id="candidate"></div>
+      </section>
+
+      <section class="sezione nascosto" id="sezione-valutazione">
+        <h2>Valutazione della posizione</h2>
+        <div class="valutazione">
+          <p class="avviso-lettura">
+            Postura e rischio sono due giudizi separati sulla posizione, chiesti nella stessa
+            richiesta ma indipendenti dalla scelta della mossa: non sono la spiegazione di
+            <em>perché</em> Jev ha mosso così.
+          </p>
+          <div class="coppia"><span class="k">Postura</span><span class="v" id="postura">—</span></div>
+          <div class="metro"><div id="metro-postura" style="width:0%"></div></div>
+          <div class="coppia" style="margin-top:10px"><span class="k">Rischio percepito</span><span class="v" id="rischio">—</span></div>
+          <div class="metro rischio"><div id="metro-rischio" style="width:0%"></div></div>
+          <div class="coppia" style="margin-top:10px"><span class="k">Confidence sulla mossa</span><span class="v" id="confidence">—</span></div>
+          <p class="avviso-lettura" style="margin:8px 0 0" id="nota-confidence"></p>
+        </div>
+      </section>
+
+      <section class="sezione nascosto" id="sezione-costi">
+        <h2>Chiamate a TypeSafe</h2>
+        <div class="valutazione">
+          <div class="coppia"><span class="k">Ultimo turno</span><span class="v" id="costo-turno">—</span></div>
+          <div class="coppia"><span class="k">Totale partita</span><span class="v" id="costo-totale">—</span></div>
+          <div class="coppia"><span class="k">Modello</span><span class="v" id="modello">—</span></div>
+        </div>
+      </section>
+
+      <section class="sezione">
+        <h2>Mosse</h2>
+        <div id="cronologia"></div>
+      </section>
+
+      <section class="sezione">
+        <button id="nuova-partita">Nuova partita</button>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<dialog id="dialog-chiave">
+  <form method="dialog" class="contenuto" id="form-chiave">
+    <h2>La tua chiave <span>TypeSafe</span></h2>
+    <p>
+      L'avversario è Jev, il System One model di TypeSafe. Per farlo giocare serve la tua
+      chiave API.
+    </p>
+    <input id="input-chiave" type="password" autocomplete="off" spellcheck="false"
+           placeholder="ts-..." aria-label="Chiave API TypeSafe">
+    <p class="nota">
+      La chiave resta in una variabile di questa pagina: non finisce in localStorage, non
+      viene scritta su disco e il server locale la inoltra senza registrarla. Ricaricando
+      (Cmd+Shift+R) te la richiede di nuovo.
+    </p>
+    <p class="errore-chiave nascosto" id="errore-chiave"></p>
+    <div class="pulsanti"><button class="primario" id="conferma-chiave" value="ok">Gioca</button></div>
+  </form>
+</dialog>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
